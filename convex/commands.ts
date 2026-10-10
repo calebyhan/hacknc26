@@ -3,7 +3,7 @@ import { internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { openEnvelope, senderFor } from "./lib/messaging";
 import { parseCommand } from "../packages/shared/commands";
-import { controlCopy, helpCopy, invalidJoinCopy, onboardingCopy, renderStatus, unavailableCopy } from "../packages/shared/copy";
+import { controlCopy, helpCopy, invalidJoinCopy, onboardingCopy, pendingCounts, renderStatus, unavailableCopy } from "../packages/shared/copy";
 import type { Id } from "./_generated/dataModel";
 
 /**
@@ -68,17 +68,26 @@ export const route = internalMutation({
       switch (command.type) {
         case "YES": case "NO": {
           const proposals = (await ctx.db.query("proposals").withIndex("by_target", (q) => q.eq("targetUserId", sender._id)).collect()).filter((p) => p.state === "pending" && memberships.some((m) => m.eventId === p.eventId) && (!p.requiresOrganizerApproval || p.organizerApprovedAt !== undefined));
-          if (proposals.length === 1) {
-            const proposal = proposals[0]!;
+          // Match current snapshot-valid offers, like domain.statusFor does.
+          // A stale row waiting for its expiry job must not hide one valid offer.
+          const checked = await Promise.all(proposals.map(async proposal => {
+            const event = await ctx.db.get(proposal.eventId);
+            const task = proposal.targetTaskId ? await ctx.db.get(proposal.targetTaskId) : null;
+            const valid = proposal.expiresAt > Date.now() && event?.status === "scheduled" && event.version === proposal.eventVersionAtCreation && task?.eventId === event._id && task.version === proposal.taskVersionAtCreation && task.status !== "completed" && task.status !== "canceled";
+            return { proposal, valid };
+          }));
+          const current = checked.filter(item => item.valid).map(item => item.proposal);
+          const proposal = current.length === 1 ? current[0] : current.length === 0 && proposals.length === 1 ? proposals[0] : undefined;
+          if (proposal) {
             await ctx.runMutation(internal.proposals.respond, { proposalId: proposal._id, actorId: sender._id, sourceMessageId: message._id, response: command.type === "YES" ? "accept" : "decline" });
             // Domain owns resulting notices; never infer success from model text.
-          } else await reply(proposals.length ? "You have several pending offers. Ask the organizer to keep one offer open before replying YES or NO." : "You have no pending offer to answer.", scope);
+          } else await reply(current.length > 1 ? "You have several pending offers. Ask the organizer to keep one offer open before replying YES or NO." : proposals.length ? "Your offers expired or changed. Ask the organizer for a new offer." : "You have no pending offer to answer.", scope);
           break;
         }
         case "STATUS": {
           const status = await ctx.runQuery(internal.domain.statusFor, { userId: sender._id });
           if (status.events.some((detail) => !memberships.some((m) => m.eventId === detail.event._id))) throw new Error("STATUS_SCOPE_VIOLATION");
-          await reply(renderStatus({ events: status.events.map((detail) => ({ title: detail.event.title, tasks: detail.tasks.map((task) => ({ title: task.title, status: task.status, assigneeCount: task.activeAssigneeIds.length, pendingCount: detail.proposals.filter((p) => p.state === "pending" && p.targetTaskId === task._id).length })) })) }), scope);
+          await reply(renderStatus({ events: status.events.map((detail) => ({ title: detail.event.title, tasks: detail.tasks.map((task) => ({ title: task.title, status: task.status, assigneeCount: task.activeAssigneeIds.length, ...pendingCounts(detail.proposals, task._id) })) })) }), scope);
           break;
         }
         case "LEAVE": {
@@ -90,7 +99,7 @@ export const route = internalMutation({
           // ownership through the domain workflow before leaving.
           if (membership.role === "organizer") { await reply("Transfer organizer responsibility before leaving this event.", membership.eventId); break; }
           await ctx.db.patch(membership._id, { state: "left", notificationsEnabled: false });
-          await ctx.scheduler.runAfter(0, internal.proposals.cancelForUser, { userId: sender._id, eventId: membership.eventId, sourceMessageId: message._id, reason: "left" });
+          await ctx.runMutation(internal.proposals.cancelForUser, { userId: sender._id, eventId: membership.eventId, sourceMessageId: message._id, reason: "left" });
           const queued = await ctx.db.query("outboundMessages").withIndex("by_state", (q) => q.eq("state", "queued")).collect();
           for (const row of queued) if (row.recipientUserId === sender._id && row.eventId === membership.eventId) await ctx.db.patch(row._id, { state: "failed" });
           const organizers = (await ctx.db.query("memberships").withIndex("by_event", (q) => q.eq("eventId", membership.eventId)).collect()).filter((m) => m.role === "organizer" && m.state === "enrolled");

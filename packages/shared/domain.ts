@@ -126,3 +126,17 @@ export type Commitment = z.infer<typeof CommitmentSchema>;
 export type Availability = z.infer<typeof AvailabilitySchema>;
 export type ContactSelection = z.infer<typeof ContactSelectionSchema>;
 export type Invitation = z.infer<typeof InvitationSchema>;
+
+export const IdempotencyKeySchema = z.string().trim().min(1).max(128);
+export const EventCreateInputSchema = z.strictObject({
+  title: TextReferenceSchema, kind: z.enum(["event", "project"]), startsAt: TimestampSchema,
+  timezone: TextReferenceSchema.refine(value => { try { new Intl.DateTimeFormat("en", { timeZone: value }); return true; } catch { return false; } }, "Invalid timezone"),
+  location: TextReferenceSchema.optional(), weatherPolicy: WeatherPolicySchema.optional(), idempotencyKey: IdempotencyKeySchema,
+});
+export const TaskCreateInputSchema = z.strictObject({
+  eventId: IdentifierSchema, title: TextReferenceSchema, location: TextReferenceSchema.optional(),
+  windowStart: TimestampSchema.optional(), windowEnd: TimestampSchema.optional(),
+  requiredSkills: z.array(TextReferenceSchema).max(20).optional(), capacity: z.number().int().min(1).max(20).optional(),
+  dependsOnTaskIds: z.array(IdentifierSchema).max(20).optional(), expectedEventVersion: VersionSchema, idempotencyKey: IdempotencyKeySchema,
+}).refine(input => (input.windowStart === undefined && input.windowEnd === undefined) || (input.windowStart !== undefined && input.windowEnd !== undefined && input.windowEnd > input.windowStart), "Invalid task window");
+export const DisplayLabelSchema = z.enum(["draft", "waiting_to_join", "pending_approval", "awaiting_participant", "confirmed", "needs_coverage", "at_risk", "completed", "failed", "canceled"]);

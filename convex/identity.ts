@@ -23,8 +23,9 @@ export const setMessagingState = internalMutation({
       for (const row of queued) if (row.recipientUserId === user._id) await ctx.db.patch(row._id, { state: "failed" });
     }
     if (args.state === "stopped") {
-      // Persist consent withdrawal even while Lane B's cancellation is a stub.
-      await ctx.scheduler.runAfter(0, internal.proposals.cancelForUser, { userId: user._id, sourceMessageId: message._id, reason: "stopped" });
+      // Domain cancellation shares this transaction. RESUME cannot race a later
+      // job and revive an offer that was pending when STOP was received.
+      await ctx.runMutation(internal.proposals.cancelForUser, { userId: user._id, sourceMessageId: message._id, reason: "stopped" });
     }
     return null;
   },

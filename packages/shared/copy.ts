@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { TaskStatusSchema } from "./enums";
+import { TaskStatusSchema, type ProposalState } from "./enums";
 import { TextReferenceSchema } from "./primitives";
 
 export const MessageCopyInputSchema = z.discriminatedUnion("type", [
@@ -24,12 +24,18 @@ export const unavailableCopy = "That service isn't available yet. No assignment 
 
 export const StatusCopySchema = z.strictObject({ events: z.array(z.strictObject({
   title: TextReferenceSchema,
-  tasks: z.array(z.strictObject({ title: TextReferenceSchema, status: TaskStatusSchema, assigneeCount: z.number().int().nonnegative(), pendingCount: z.number().int().nonnegative() })),
+  tasks: z.array(z.strictObject({ title: TextReferenceSchema, status: TaskStatusSchema, assigneeCount: z.number().int().nonnegative(), pendingCount: z.number().int().nonnegative(), approvalCount: z.number().int().nonnegative().optional() })),
 })) });
+/** Input must already be scoped/version-checked by the domain read model. */
+export function pendingCounts(proposals: readonly { targetTaskId?: string; state: ProposalState; requiresOrganizerApproval: boolean; organizerApprovedAt?: number }[], taskId: string): { pendingCount: number; approvalCount: number } {
+  const pending = proposals.filter(p => p.state === "pending" && p.targetTaskId === taskId);
+  const approvalCount = pending.filter(p => p.requiresOrganizerApproval && p.organizerApprovedAt === undefined).length;
+  return { pendingCount: pending.length - approvalCount, approvalCount };
+}
 export function renderStatus(input: z.infer<typeof StatusCopySchema>): string {
   const status = StatusCopySchema.parse(input);
   if (!status.events.length) return "You have no enrolled events.";
-  return status.events.map((event) => `${event.title}:\n${event.tasks.length ? event.tasks.map((task) => `${task.title}: ${task.status.replaceAll("_", " ")}${task.status === "confirmed" ? ` (${task.assigneeCount} accepted)` : ""}${task.pendingCount ? `; ${task.pendingCount} awaiting response` : ""}`).join("\n") : "No tasks yet."}`).join("\n\n").slice(0, 4_000);
+  return status.events.map((event) => `${event.title}:\n${event.tasks.length ? event.tasks.map((task) => `${task.title}: ${task.status.replaceAll("_", " ")}${task.status === "confirmed" ? ` (${task.assigneeCount} accepted)` : ""}${task.approvalCount ? `; ${task.approvalCount} awaiting organizer approval` : ""}${task.pendingCount ? `; ${task.pendingCount} awaiting response` : ""}`).join("\n") : "No tasks yet."}`).join("\n\n").slice(0, 4_000);
 }
 
 export function renderMessage(input: MessageCopyInput): string {

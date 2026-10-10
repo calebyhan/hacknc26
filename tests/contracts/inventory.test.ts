@@ -5,6 +5,9 @@ const modules = import.meta.glob<Record<string, unknown>>(
   { eager: true },
 );
 const expected = [
+  ["accounts.register", "public mutation"],
+  ["accounts.beginPhoneLink", "public mutation"],
+  ["accounts.completePhoneLink", "public mutation"],
   ["commands.route", "internal mutation"],
   ["commitments.reportUnavailable", "internal mutation"],
   ["context.buildPacket", "internal query"],
@@ -14,6 +17,7 @@ const expected = [
   ["events.create", "public mutation"],
   ["events.detail", "public query"],
   ["events.myEvents", "public query"],
+  ["events.organizerInvitation", "public mutation"],
   ["identity.setMessagingState", "internal mutation"],
   ["inbound.ingest", "internal mutation"],
   ["invitations.createForContacts", "public mutation"],
@@ -23,6 +27,9 @@ const expected = [
   ["proposals.create", "internal mutation"],
   ["proposals.organizerApprove", "internal mutation"],
   ["proposals.respond", "internal mutation"],
+  ["proposals.approve", "public mutation"],
+  ["proposals.expire", "internal mutation"],
+  ["proposals.recommendReplacement", "internal mutation"],
   ["reasoningJobs.claim", "public mutation"],
   ["reasoningJobs.complete", "public mutation"],
   ["reasoningJobs.enqueue", "internal mutation"],

@@ -2,6 +2,8 @@
 
 Date: 2026-10-10. **Goal:** a participant-initiated DM reaches a durable inbox, can enroll through JOIN, and receives consent-checked replies. **T0's real inbound/reply smoke test passes; live JOIN and M1 remain incomplete.** Local tests cover invitation and routing behavior with simulation. See the real transport trace below for the narrower live evidence.
 
+Lane B follow-up: the historical stub/blocker statements below describe the Lane A checkpoint. Domain/auth implementation and actual-router simulation tests now pass; see [Lane B evidence](20-domain-evidence.md). Live event JOIN/STATUS and two-phone reassignment remain pending.
+
 ## Implementation
 
 - Native HMAC/timestamp verification uses the installed component's `parseWebhook` and `headerRecord`. Only inbound iMessage text DMs with E.164 sender metadata enter Rally. Outgoing messages, groups, signals and other content are ignored. A body-supplied name/phone never supplies identity.

@@ -22,6 +22,7 @@
 | ADR-014 | DECIDED | Persisted state enums live only in `03-data-model.md#canonical-state-enums`; display labels are derived (`06-workflows.md#status-vocabulary`). |
 | ADR-015 | DECIDED | Two-level optimistic versioning: `events.version` for event-level fields, `tasks.version` per task; proposals and worker output check both (`03-data-model.md` invariants 5–6). Prevents one task's change from invalidating offers on other tasks. |
 | ADR-016 | DECIDED | Prompt 0 freezes concrete stub contracts and test tooling, including typed JSON worker envelopes and persisted task-version snapshots. Product behavior and provider capabilities remain unverified. |
+| ADR-017 | DECIDED | Auth0 app identity is distinct from phone/event messaging consent; explicit phone challenge and event JOIN bind them. Domain execution and response proof use transactional idempotency. See Lane B evidence. |
 
 ### ADR-011 — Reassignment, cancellation and organizer approval
 - Date: 2026-10-10
@@ -74,6 +75,32 @@
 - Evidence / link: package lock and `18-bootstrap-contract.md`. Human Convex setup completed; strict root/workspace typechecks, 64 tests, and the cloud development schema/stub deployment passed. This proves the Prompt 0 contract gate, not the live Photon or P0 product gates.
 
 ## Blocking questions (resolve in first 2 hours)
+
+### Lane A–B integration follow-up, 2026-10-10
+
+**173 tests in 11 files pass**, including 13 signed synthetic webhook → actual scheduled router/domain → fake provider pipeline scenarios. Regression tests first reproduced delayed STOP/LEAVE cancellation races, stale-offer ambiguity and status incorrectly labeling organizer approval as participant response. STOP/LEAVE now cancel pending offers transactionally; YES/NO selects snapshot-valid offers; shared status counts distinguish both approval stages. No persisted state enum or endpoint signature changed; optional `approvalCount` extends the shared copy input. See [integration evidence](21-messaging-domain-integration.md). Actual multi-phone M1 and real app login remain unverified; no fake fixture was deployed as live event consent.
+
+The fixes deployed to teammate `dev/caleb-han` at 5:18:04 PM EDT. Post-deployment crypto readiness passes, anonymous event access is denied, and an unsigned webhook is rejected (HTTP 400). Contract inventory remains 38 functions, and `git diff --check` passes.
+
+### Lane B update, 2026-10-10
+
+The user selected **Auth0** and saved its public tenant domain/client ID on `rally:dev/caleb-han` (`calm-jackal-984`). Both server values are present and HTTPS issuer discovery succeeds. A genuine app session/login has not been observed. The backend now checks verified app identity and enrolled membership/organizer role; signing in alone does not verify a phone or grant event access.
+
+Lane B implements T1/T3 and the deterministic T7 planner. **160 tests in 10 files pass**, including the required ST-04/05/06/08/09/10/13/18 and worker-free ST-11 paths under encrypted synthetic messages/fake delivery. The actual Lane A router and outbox are integrated in those tests. Live enrolled JOIN/STATUS and the two-phone M1 acceptance gate remain pending. Lane C inference/context/weather remain throwing stubs. See [domain evidence, contract additions and authenticated setup](20-domain-evidence.md).
+
+Deployment succeeded to the teammate's development deployment at 4:57:39 PM EDT. Cloud public APIs reject anonymous queries/registration and a forged token; messaging crypto configuration remains ready. No fake seed or real assignment/send was run during verification. Contract inventory now contains 38 functions.
+
+ADR-017 (routine choices within the authorized Lane B implementation):
+
+- `accounts.register` requires a verified Auth0 identity. Linking a phone additionally requires that phone's persisted signed JOIN challenge. Existing onboarding identity is retained; a different app identity cannot take it over. Link before creating event ownership/roles; no silent cross-account migration.
+- Creating an event gives its app owner an organizer membership with notifications disabled. Only its own self-issued event JOIN adds messaging consent; app sign-in/contact selection is insufficient.
+- Cache canonical domain decisions/results independently of worker completion. Atomic audit request keys deduplicate creates/cancellations and bind each YES/NO to one offer. Reject replies older than the proposal. No direct commit from an interpretation of a third party's acceptance.
+- Event confirmation bumps the event version; commitment/task changes bump only the task. Remaining assignment offers for a multi-person task can advance to the new task version only while a slot remains and the already accepted change is compatible. Capacity-one competing offers become superseded.
+- Unknown availability may justify a pending offer requiring approvals, never an invented availability fact or commitment. Planner recommends one candidate, requires organizer approval before contacting them, then the candidate's own YES.
+- Multi-assignee task changes create one snapshot-bound offer per current assignee and apply once only after every approval. No change on a decline; dependencies/conflicts are rechecked before application.
+- Authenticated seed creates labeled simulation drafts, unassigned tasks and invited fake contacts through the same public validation; it fabricates no live phone verification, consent or acceptance. Manual real setup uses `scripts/domain-setup.mjs` with a genuine app ID token, never a CLI identity override.
+
+Contract impact: additive app account/organizer-opt-in/approval APIs, internal expiry/planner APIs, derived optional read labels, two optional job execution-cache fields, and audit `by_source`. Existing signatures/enums preserved. A/B integration is tested locally; separate A/C/D acknowledgments have not been collected and remain required before merging.
 
 ### Lane A update, 2026-10-10
 

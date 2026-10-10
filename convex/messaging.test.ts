@@ -220,7 +220,7 @@ describe("Lane A invitations and routing (simulation)", () => {
     expect(await t.run((ctx) => ctx.db.get(queued))).toMatchObject({ state: "failed", attemptCount: 0 });
     await expect(t.mutation(internal.outbox.enqueue, { recipientUserId: member.memberId, eventId: member.eventId, content: "Fixture reminder", idempotencyKey: "fixture-after-stop" })).rejects.toThrow("MESSAGING_NOT_PERMITTED");
   });
-  it("LEAVE revokes only the named membership and schedules domain cancellation", async () => {
+  it("LEAVE revokes only the named membership and calls domain cancellation", async () => {
     const t = setup();
     const member = await enroll(t);
     // Organizer fixture intentionally has no messaging consent; no cold notice.
@@ -229,8 +229,12 @@ describe("Lane A invitations and routing (simulation)", () => {
     expect(membership).toMatchObject({ state: "left", notificationsEnabled: false });
     expect((await t.run((ctx) => ctx.db.query("outboundMessages").collect())).some((m) => m.content.startsWith("You've left"))).toBe(true);
   });
-  it("labels the unimplemented status service truthfully, without invoking a model", async () => {
-    const t = setup();
+  it("reports a simulated status outage truthfully, without invoking a model", async () => {
+    const t = setup({ "./domain.ts": async () => ({ statusFor: internalQuery({
+      args: { userId: v.id("users"), eventId: v.optional(v.id("events")) },
+      returns: statusSummary,
+      handler: async () => { throw new Error("SIMULATED_DOMAIN_FAILURE"); },
+    }) }) });
     await enroll(t);
     const messageId = await inbound(t, "STATUS");
     await t.mutation(internal.commands.route, { messageId });

@@ -13,11 +13,11 @@ describe("Convex bootstrap stubs (in-memory simulation)", () => {
     const authenticated = t.withIdentity({ subject: "fixture-subject" });
     for (const caller of [t, authenticated]) {
       await expect(caller.query(api.events.myEvents, {}))
-        .rejects.toThrow("NOT_IMPLEMENTED(lane-b)");
+        .rejects.toThrow("UNAUTHORIZED");
       await expect(caller.mutation(api.events.create, {
         title: "Fixture only", kind: "event", startsAt: 1_792_246_800_000,
         timezone: "America/New_York", idempotencyKey: "fixture-create",
-      })).rejects.toThrow("NOT_IMPLEMENTED(lane-b)");
+      })).rejects.toThrow("UNAUTHORIZED");
     }
     expect(await t.run(async (ctx) => ctx.db.query("events").collect())).toEqual([]);
     expect(await t.run(async (ctx) => ctx.db.query("users").collect())).toEqual([]);
@@ -35,15 +35,15 @@ describe("Convex bootstrap stubs (in-memory simulation)", () => {
     expect(await t.run(async (ctx) => ctx.db.query("workerHeartbeats").collect())).toEqual([]);
   });
 
-  it("keeps the lane B seed stub inert", async () => {
+  it("keeps fixture setup inaccessible without organizer identity", async () => {
     const t = convexTest(schema, modules);
     await expect(t.mutation(internal.seed.bootstrap, {}))
-      .rejects.toThrow("NOT_IMPLEMENTED(lane-b)");
+      .rejects.toThrow("UNAUTHORIZED");
     expect(await t.run(async (ctx) => ctx.db.query("inboundMessages").collect())).toEqual([]);
     expect(await t.run(async (ctx) => ctx.db.query("events").collect())).toEqual([]);
   });
 
-  it("does not treat auth helper stubs as authorization", async () => {
+  it("does not treat database ownership as authenticated identity", async () => {
     const t = convexTest(schema, modules);
     const eventId = await t.run(async (ctx) => {
       const ownerId = await ctx.db.insert("users", {
@@ -56,10 +56,10 @@ describe("Convex bootstrap stubs (in-memory simulation)", () => {
       });
     });
     await expect(t.run(async (ctx) => requireUser(ctx)))
-      .rejects.toThrow("NOT_IMPLEMENTED(lane-b)");
+      .rejects.toThrow("UNAUTHORIZED");
     await expect(t.run(async (ctx) => requireMember(ctx, eventId)))
-      .rejects.toThrow("NOT_IMPLEMENTED(lane-b)");
+      .rejects.toThrow("UNAUTHORIZED");
     await expect(t.run(async (ctx) => requireOrganizer(ctx, eventId)))
-      .rejects.toThrow("NOT_IMPLEMENTED(lane-b)");
+      .rejects.toThrow("UNAUTHORIZED");
   });
 });

@@ -79,7 +79,7 @@ Names below are the contract. Prompt 0 creates them as stubs that throw `NOT_IMP
 | `context.buildPacket` | internal query | C | Minimal scoped packet for a job |
 | `weather.check` + `crons.ts` | internal action | C | P1 weather watch (`09`) |
 
-Prompt 0's concrete argument/return validators live with each function; the accompanying [bootstrap contract](18-bootstrap-contract.md) documents wire shapes and secure implementation requirements. Every handler and auth helper is still a throwing stub. `weather.check` exists, but `crons.ts` registers no jobs until Lane C implements P1. `seed.bootstrap` remains internal and must preserve ADR-013's organizer authorization when implemented; internal visibility alone is not permission or participant consent.
+Prompt 0's concrete argument/return validators live with each function; the accompanying [bootstrap contract](18-bootstrap-contract.md) documents wire shapes and secure implementation requirements. The table above describes the frozen base contract. Lane A messaging and Lane B domain/auth implementations now have test evidence; Lane C remains stubbed. Additive Lane B contracts and review boundaries are recorded in [domain evidence](20-domain-evidence.md). `weather.check` exists, but `crons.ts` registers no jobs until Lane C implements P1. `seed.bootstrap` remains internal and preserves ADR-013's organizer authorization; internal visibility alone is not permission or participant consent.
 
 ## File ownership
 

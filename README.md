@@ -1,6 +1,6 @@
 # Rally
 
-**Status:** A real Photon HELP DM reached Convex, received a provider-accepted reply, and the user confirmed the reply on their phone. A constructed signed replay of the same real message ID created no second reply. Lane A local tests also pass for invitations/JOIN, opt-out controls and routing. **Live event enrollment and the coordination vertical slice remain incomplete:** Lane B/C domain and reasoning functions are still stubs. See [messaging evidence and setup](docs/19-messaging-evidence.md).
+**Status:** Real Photon HELP and onboarding STATUS replies passed, with user-confirmed phone receipt. Lane B implements authenticated event/task setup, proposals, acceptance/rejection, cancellation, scoped status, validated decision execution and the replacement planner, deployed to teammate `dev/caleb-han`. **173 local tests pass**, including 13 signed full-pipeline A+B simulations. Auth0 configuration/discovery and cloud access denial are verified. **Live event enrollment and reassignment remain to be demonstrated; Lane C's worker/context/weather functions are still stubs.** See [messaging evidence](docs/19-messaging-evidence.md), [domain evidence/setup](docs/20-domain-evidence.md) and [integration evidence](docs/21-messaging-domain-integration.md).
 
 **Primary experience:** iMessage via Photon Spectrum.  
 **Companion experience:** lightweight SwiftUI iOS app for project/event setup, explicit contact selection, membership, and live status.  
@@ -70,8 +70,8 @@ Rally/
   CLAUDE.md                 # Claude Code entrypoint
   docs/                     # Design and acceptance criteria
   prompts/                  # Agent kickoff prompts per lane/checkpoint (docs/17)
-  convex/                   # Schema, validated function stubs, contract tests
-  packages/shared/          # Zod schemas, fakes, fixtures, pure-function stubs
+  convex/                   # Messaging/domain functions, auth, Lane C stubs, tests
+  packages/shared/          # Zod schemas, fakes, fixtures, deterministic planner
   worker/                   # Configuration-only skeleton; no inference yet
   tests/contracts/          # Cross-lane function inventory checks
   scripts/                  # Contract inventory command
@@ -90,7 +90,7 @@ npm run check
 npm run contracts:list
 ```
 
-`check` typechecks the root/Convex code and both workspaces, then runs shared contract, worker, and `convex-test` tests. These tests verify the bootstrap boundary; they do not prove any P0 product acceptance scenario or live delivery.
+`check` typechecks the root/Convex code and both workspaces, then runs contract, messaging, domain, planner and worker tests. Domain/messaging acceptance tests use explicit simulations; they do not prove real multi-phone coordination or live delivery.
 
 For the required first development deployment, a human runs this in the repository root, signs in, and selects/creates the Rally development project:
 
@@ -108,8 +108,8 @@ Prompt 0 is complete only after local checks pass, the contract inventory is ver
 
 1. Join the existing Convex team and authenticate locally; confirm the development deployment used for Photon. Run `npm run messaging:configure` to check server configuration and create the server-only messaging key if absent.
 2. Deploy with `npx convex dev --once`; configure the native Photon webhook at that deployment's `/spectrum/webhook`. Verify a real inbound and outbound DM before building AI. See [the runbook](docs/19-messaging-evidence.md).
-3. Create the minimal tables, roles, and invitation/phone-linking workflow.
-4. Implement deterministic task assignment / confirmations using a fake messaging adapter first, then wire Photon.
+3. Use the [authenticated domain setup runbook](docs/20-domain-evidence.md) to link the organizer's actual phone, create an event/tasks and prepare invitations. Every recipient must send their own JOIN; setup never invents consent.
+4. Run `prompts/m1-messaging-domain.md`: verify genuine event JOIN/STATUS and a second participant's real YES committing one reassignment. The deterministic protocol already passes under `FakeMessagingAdapter`.
 5. Add the local model worker only after the deterministic vertical slice is passing.
 6. Add SwiftUI setup and status; add weather only after core flow is robust.
 

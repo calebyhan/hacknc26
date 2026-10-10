@@ -18,6 +18,7 @@
     "test:watch": "vitest",
     "contracts:list": "node scripts/list-contracts.mjs",
     "messaging:configure": "node scripts/configure-messaging.mjs",
+    "domain:setup": "node --env-file-if-exists=.env.local scripts/domain-setup.mjs",
     "convex:codegen": "convex codegen --typecheck disable",
     "worker": "npm run start --workspace @rally/worker"
   },

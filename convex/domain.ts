@@ -2,13 +2,18 @@ import { v } from "convex/values";
 import type { Infer } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
 import { statusSummary } from "./lib/validators";
+import { detailFor } from "./lib/domain";
+import { executeDecision as execute } from "./lib/decisionEngine";
 
 /** Lane B: trusted caller's user ID still requires per-event enrollment checks. */
 export const statusFor = internalQuery({
   args: { userId: v.id("users"), eventId: v.optional(v.id("events")) },
   returns: statusSummary,
-  handler: async (_ctx, _args): Promise<Infer<typeof statusSummary>> => {
-    throw new Error("NOT_IMPLEMENTED(lane-b)");
+  handler: async (ctx, args): Promise<Infer<typeof statusSummary>> => {
+    if (!await ctx.db.get(args.userId)) throw new Error("UNAUTHORIZED");
+    const memberships = (await ctx.db.query("memberships").withIndex("by_user", q => q.eq("userId", args.userId)).collect()).filter(m => m.state === "enrolled");
+    if (args.eventId && !memberships.some(m => m.eventId === args.eventId)) throw new Error("UNAUTHORIZED");
+    return { events: await Promise.all(memberships.filter(m => !args.eventId || m.eventId === args.eventId).map(m => detailFor(ctx, args.userId, m.eventId))) };
   },
 });
 
@@ -30,7 +35,7 @@ const decisionResult = v.object({
 export const executeDecision = internalMutation({
   args: { jobId: v.id("reasoningJobs"), decisionJson: v.string() },
   returns: decisionResult,
-  handler: async (_ctx, _args): Promise<Infer<typeof decisionResult>> => {
-    throw new Error("NOT_IMPLEMENTED(lane-b)");
+  handler: async (ctx, args): Promise<Infer<typeof decisionResult>> => {
+    return execute(ctx, args.jobId, args.decisionJson);
   },
 });

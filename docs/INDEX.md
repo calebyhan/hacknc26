@@ -22,6 +22,8 @@
 | `17-workstreams.md` | 4-lane parallel plan, frozen contract, file ownership, checkpoints | Team kickoff; before any contract change |
 | `18-bootstrap-contract.md` | Concrete Prompt 0 contracts, toolchain, verification and deployment handoff | Starting a lane after bootstrap |
 | `19-messaging-evidence.md` | Lane A local evidence, SDK differences, cloud setup and live-test blockers | Configuring or reviewing messaging |
+| `20-domain-evidence.md` | Lane B acceptance evidence, Auth0/phone setup, additive contracts and M1 handoff | Reviewing domain behavior or preparing real event enrollment |
+| `21-messaging-domain-integration.md` | Signed full-pipeline A+B simulation tests, cancellation/routing fixes and verification | Reviewing messaging/domain integration |
 | `../prompts/` | Kickoff prompts per lane and checkpoint | Starting a lane or checkpoint session |
 
 ## How to use

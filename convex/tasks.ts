@@ -1,6 +1,8 @@
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { mutation } from "./_generated/server";
+import { requireOrganizer } from "./lib/auth";
+import { createTask } from "./lib/domain";
 
 /** Lane B: requireOrganizer, validate dependencies/windows; default capacity to 1. */
 export const create = mutation({
@@ -17,7 +19,8 @@ export const create = mutation({
     idempotencyKey: v.string(),
   },
   returns: v.id("tasks"),
-  handler: async (_ctx, _args): Promise<Id<"tasks">> => {
-    throw new Error("NOT_IMPLEMENTED(lane-b)");
+  handler: async (ctx, args): Promise<Id<"tasks">> => {
+    const { user } = await requireOrganizer(ctx, args.eventId);
+    return createTask(ctx, user._id, args);
   },
 });

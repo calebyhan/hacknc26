@@ -105,7 +105,10 @@ export const redeem = internalMutation({
     const canonicalUser = sender ?? target;
     if (invitation.purpose === "event_invite") {
       const membership = await ctx.db.query("memberships").withIndex("by_event_user", (q) => q.eq("eventId", invitation.eventId!).eq("userId", target._id)).unique();
-      if (!membership || membership.state === "enrolled") return { redeemed: false };
+      // App-created organizers already have event access, but acquire messaging
+      // consent only through their own scoped, self-issued invitation and JOIN.
+      const organizerOptIn = membership?.role === "organizer" && membership.consentAt === undefined && invitation.inviterUserId === target._id && canonicalUser._id === target._id;
+      if (!membership || membership.state === "enrolled" && !organizerOptIn) return { redeemed: false };
       const duplicateMembership = canonicalUser._id !== target._id ? await ctx.db.query("memberships").withIndex("by_event_user", (q) => q.eq("eventId", invitation.eventId!).eq("userId", canonicalUser._id)).unique() : null;
       if (duplicateMembership) {
         await ctx.db.delete(membership._id);
