@@ -3,19 +3,34 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "workspaces": ["packages/shared", "worker"],
-  "engines": { "node": "^24.0.0 || >=26.0.0", "npm": ">=11" },
+  "workspaces": [
+    "packages/shared",
+    "worker"
+  ],
+  "engines": {
+    "node": "^24.0.0 || >=26.0.0",
+    "npm": ">=11"
+  },
   "scripts": {
     "check": "npm run typecheck && vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json && npm run typecheck --workspaces",
     "test": "vitest run",
     "test:watch": "vitest",
     "contracts:list": "node scripts/list-contracts.mjs",
+    "messaging:configure": "node scripts/configure-messaging.mjs",
+    "domain:setup": "node --env-file-if-exists=.env.local scripts/domain-setup.mjs",
     "convex:codegen": "convex codegen --typecheck disable",
     "worker": "npm run start --workspace @rally/worker"
   },
   "dependencies": {
+    "@grpc/grpc-js": "1.14.6",
+    "@photon-ai/advanced-imessage": "2.2.0",
+    "@spectrum-ts/convex": "0.1.1",
+    "@spectrum-ts/core": "12.10.1",
+    "@spectrum-ts/imessage": "12.10.1",
     "convex": "1.46.0",
+    "nice-grpc": "2.1.17",
+    "nice-grpc-common": "2.0.4",
     "zod": "4.6.5"
   },
   "devDependencies": {
@@ -23,6 +38,7 @@
     "@types/node": "26.6.5",
     "convex-test": "0.0.61",
     "typescript": "7.0.2",
+    "vite": "8.3.4",
     "vitest": "5.0.3"
   }
 }

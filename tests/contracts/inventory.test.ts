@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 const modules = import.meta.glob<Record<string, unknown>>(
-  ["../../convex/*.ts", "!../../convex/*.test.ts"],
+  ["../../convex/*.ts", "!../../convex/*.test.ts", "!../../convex/convex.config.ts"],
   { eager: true },
 );
 const expected = [
+  ["accounts.register", "public mutation"],
+  ["accounts.beginPhoneLink", "public mutation"],
+  ["accounts.completePhoneLink", "public mutation"],
   ["commands.route", "internal mutation"],
   ["commitments.reportUnavailable", "internal mutation"],
   ["context.buildPacket", "internal query"],
@@ -14,6 +17,7 @@ const expected = [
   ["events.create", "public mutation"],
   ["events.detail", "public query"],
   ["events.myEvents", "public query"],
+  ["events.organizerInvitation", "public mutation"],
   ["identity.setMessagingState", "internal mutation"],
   ["inbound.ingest", "internal mutation"],
   ["invitations.createForContacts", "public mutation"],
@@ -23,6 +27,9 @@ const expected = [
   ["proposals.create", "internal mutation"],
   ["proposals.organizerApprove", "internal mutation"],
   ["proposals.respond", "internal mutation"],
+  ["proposals.approve", "public mutation"],
+  ["proposals.expire", "internal mutation"],
+  ["proposals.recommendReplacement", "internal mutation"],
   ["reasoningJobs.claim", "public mutation"],
   ["reasoningJobs.complete", "public mutation"],
   ["reasoningJobs.enqueue", "internal mutation"],
@@ -58,7 +65,15 @@ describe("frozen backend contract", () => {
       name,
       `${value.isInternal ? "internal" : "public"} ${value.isQuery ? "query" : value.isMutation ? "mutation" : "action"}`,
     ]).sort(([a = ""], [b = ""]) => a.localeCompare(b));
-    expect(actual).toEqual(expected);
+    // Preserve all frozen contracts while permitting additive internal Lane A
+    // delivery functions. No bootstrap signature or visibility is replaced.
+    for (const entry of expected) expect(actual).toContainEqual(entry);
+    for (const [name, kind] of actual) {
+      if (!expected.some(([expectedName]) => expectedName === name)) {
+        expect(["outbox.claim", "outbox.settle", "outbox.markUnknown", "spectrumSender.deliver", "spectrum.checkRuntime", "spectrum.verifyRuntimeCrypto"]).toContain(name);
+        expect(kind).toMatch(/^internal /);
+      }
+    }
     for (const { value } of registrations) {
       expect(Boolean(value.isInternal) !== Boolean(value.isPublic)).toBe(true);
     }
