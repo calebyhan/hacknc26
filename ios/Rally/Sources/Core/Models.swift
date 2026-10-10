@@ -122,10 +122,19 @@ struct RallyTaskSummary: Codable, Identifiable, Equatable, Sendable {
     var status: TaskStatus
     var version: Int
     var activeAssigneeIds: [String]
+    var displayLabel: DisplayStatus? = nil
 
     var id: String { _id }
     /// Only canonical committed task state controls this label; offers are separate.
     var committedDisplayStatus: DisplayStatus { status.displayStatus }
+    var attentionDisplayStatus: DisplayStatus? {
+        guard status != .completed && status != .canceled else { return nil }
+        switch displayLabel {
+        case .atRisk: return .atRisk
+        case .unknown: return .unknown
+        default: return nil
+        }
+    }
 }
 
 struct ProposalSummary: Codable, Identifiable, Equatable, Sendable {
@@ -138,16 +147,49 @@ struct ProposalSummary: Codable, Identifiable, Equatable, Sendable {
     var requiresOrganizerApproval: Bool
     var organizerApprovedAt: Double? = nil
     var expiresAt: Double
+    var displayLabel: DisplayStatus? = nil
 
     var id: String { _id }
     var expirationDate: Date { Date(timeIntervalSince1970: expiresAt / 1_000) }
-    var displayStatus: DisplayStatus? {
+    var displayStatus: DisplayStatus? { displayStatus(at: Date()) }
+
+    func isCurrent(at now: Date = Date()) -> Bool {
+        state == .pending && expiresAt.isFinite && expiresAt > now.timeIntervalSince1970 * 1_000
+    }
+
+    func canOrganizerApprove(at now: Date = Date()) -> Bool {
+        isCurrent(at: now) && requiresOrganizerApproval && organizerApprovedAt == nil
+            && displayStatus(at: now) == .pendingApproval
+    }
+
+    func displayStatus(at now: Date) -> DisplayStatus? {
         switch state {
-        case .pending: requiresOrganizerApproval && organizerApprovedAt == nil ? .pendingApproval : .awaitingParticipant
-        case .canceled: .canceled
-        case .unknown: .unknown
+        case .pending:
+            guard isCurrent(at: now) else { return nil }
+            guard type != .unknown else { return .unknown }
+            let expected: DisplayStatus = requiresOrganizerApproval && organizerApprovedAt == nil ? .pendingApproval : .awaitingParticipant
+            // A new or inconsistent label must never be presented as confirmed.
+            if let displayLabel, displayLabel != expected { return .unknown }
+            return expected
+        case .canceled: return .canceled
+        case .unknown: return .unknown
         // Accepted proposal text is not evidence of an active commitment.
-        case .accepted, .declined, .expired, .superseded: nil
+        case .accepted, .declined, .expired, .superseded: return nil
+        }
+    }
+
+    func statusDescription(at now: Date = Date()) -> String {
+        switch state {
+        case .pending:
+            guard isCurrent(at: now) else { return "This offer expired. Refresh for its latest status." }
+            if displayStatus(at: now) == .unknown { return "Request status is unavailable. Refresh before taking action." }
+            return requiresOrganizerApproval && organizerApprovedAt == nil ? "Waiting for organizer approval" : "Waiting for the participant's response"
+        case .accepted: return "Response recorded. Check the committed task state above."
+        case .declined: return "The participant declined this request."
+        case .expired: return "This offer expired or its details changed."
+        case .superseded: return "This offer was replaced or the task changed."
+        case .canceled: return "This request was canceled."
+        case .unknown: return "Request status is unavailable."
         }
     }
 }
@@ -157,11 +199,12 @@ struct MemberSummary: Codable, Identifiable, Equatable, Sendable {
     var displayName: String
     var role: MemberRole
     var state: MembershipState
+    var displayLabel: DisplayStatus? = nil
 
     var id: String { userId }
     var displayStatus: DisplayStatus? {
         switch state {
-        case .invited: .waitingToJoin
+        case .invited: displayLabel == nil || displayLabel == .waitingToJoin ? .waitingToJoin : .unknown
         case .unknown: .unknown
         case .enrolled, .left: nil
         }
@@ -177,8 +220,8 @@ struct EventDetail: Codable, Equatable, Sendable {
     func memberName(_ userID: String) -> String {
         members.first { $0.userId == userID }?.displayName ?? "Unknown participant"
     }
-    func pendingProposals(for taskID: String) -> [ProposalSummary] {
-        proposals.filter { $0.targetTaskId == taskID && $0.state == .pending }
+    func pendingProposals(for taskID: String, at now: Date = Date()) -> [ProposalSummary] {
+        proposals.filter { $0.targetTaskId == taskID && $0.isCurrent(at: now) }
     }
 }
 

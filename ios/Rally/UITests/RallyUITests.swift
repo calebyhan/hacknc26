@@ -2,8 +2,14 @@ import XCTest
 
 @MainActor
 final class RallyUITests: XCTestCase {
-    func testDemoSeparatesConfirmedAndProposedAssignments() {
+    private func localApp() -> XCUIApplication {
         let app = XCUIApplication()
+        app.launchArguments += ["--rally-local-tests"]
+        return app
+    }
+
+    func testDemoSeparatesConfirmedAndProposedAssignments() {
+        let app = localApp()
         app.launch()
         enterDemo(app)
         app.buttons["event-event_charity_5k"].tap()
@@ -22,10 +28,12 @@ final class RallyUITests: XCTestCase {
         capture(app, name: "Demo simulated acceptance")
     }
 
-    func testCreateEventAppearsInDemoList() {
-        let app = XCUIApplication()
+    func testCreateDraftTimedTaskThenConfirmAndRequestOrganizerCode() {
+        let app = localApp()
         app.launch()
         enterDemo(app)
+        completeDemoPhoneProof(app)
+        app.buttons["Done"].tap()
         app.buttons["Create an event"].tap()
         let title = app.textFields["eventTitle"]
         XCTAssertTrue(title.waitForExistence(timeout: 5))
@@ -33,10 +41,35 @@ final class RallyUITests: XCTestCase {
         title.typeText("Team picnic")
         app.buttons["saveEvent"].tap()
         XCTAssertTrue(app.staticTexts["Team picnic"].waitForExistence(timeout: 5))
+        app.staticTexts["Team picnic"].tap()
+        XCTAssertTrue(app.staticTexts["Draft"].waitForExistence(timeout: 5))
+        let addTask = app.buttons["Add a task"]
+        reveal(addTask, in: app)
+        addTask.tap()
+        let taskTitle = app.textFields["taskTitle"]
+        XCTAssertTrue(taskTitle.waitForExistence(timeout: 5))
+        taskTitle.tap()
+        taskTitle.typeText("Bring snacks")
+        app.buttons["saveTask"].tap()
+        XCTAssertTrue(app.staticTexts["Bring Snacks"].waitForExistence(timeout: 5))
+        app.swipeDown()
+        let confirm = app.buttons["confirmEvent"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        confirm.tap()
+        app.buttons["Schedule event"].tap()
+        let organizer = app.buttons["organizerInvitation"]
+        reveal(organizer, in: app)
+        organizer.tap()
+        XCTAssertTrue(app.staticTexts["This is a simulated code and cannot be redeemed."].waitForExistence(timeout: 5))
+        let notice = app.staticTexts["The event is scheduled. Tasks still require participant acceptance."]
+        reveal(notice, in: app)
+        XCTAssertTrue(notice.exists)
+        XCTAssertFalse(app.staticTexts["Confirmed: Alex"].exists)
+        capture(app, name: "Demo scheduled event and separate organizer code")
     }
 
     func testReviewedFictionalContactStaysInvited() {
-        let app = XCUIApplication()
+        let app = localApp()
         app.launch()
         enterDemo(app)
         app.buttons["event-event_charity_5k"].tap()
@@ -56,8 +89,8 @@ final class RallyUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Waiting for them to text Rally"].firstMatch.exists)
     }
 
-    func testLargeTextWelcomeAndPhoneLinkUnavailable() {
-        let app = XCUIApplication()
+    func testLargeTextWelcomeAndPhoneLinkInstructions() {
+        let app = localApp()
         app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         app.launch()
         capture(app, name: "Welcome large type")
@@ -65,13 +98,64 @@ final class RallyUITests: XCTestCase {
         let connect = app.buttons["Connect iMessage"]
         reveal(connect, in: app)
         connect.tap()
-        let unavailable = app.staticTexts["Phone linking is not available in this build."]
-        reveal(unavailable, in: app)
-        XCTAssertTrue(unavailable.exists)
+        let instructions = app.staticTexts["Connect your own phone"]
+        reveal(instructions, in: app)
+        XCTAssertTrue(instructions.exists)
+        let phone = app.textFields["linkPhoneNumber"]
+        reveal(phone, in: app)
+        XCTAssertTrue(phone.exists)
+        capture(app, name: "Phone linking large type")
+    }
+
+    func testPhoneCodeRequiresExplicitSimulatedProof() {
+        let app = localApp()
+        app.launch()
+        enterDemo(app)
+        completeDemoPhoneProof(app)
+        capture(app, name: "Phone linked only after explicit demo proof")
+    }
+
+    private func completeDemoPhoneProof(_ app: XCUIApplication) {
+        let connect = app.buttons["Connect iMessage"]
+        reveal(connect, in: app)
+        connect.tap()
+        let phone = app.textFields["linkPhoneNumber"]
+        XCTAssertTrue(phone.waitForExistence(timeout: 5))
+        phone.tap()
+        phone.typeText("+15555550123")
+        let request = app.buttons["requestPhoneCode"]
+        reveal(request, in: app)
+        request.tap()
+        XCTAssertTrue(app.staticTexts["phoneJoinCode"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Demo phone proof simulated"].exists)
+        let check = app.buttons["checkPhoneProof"]
+        reveal(check, in: app)
+        check.tap()
+        XCTAssertFalse(app.staticTexts["Demo phone proof simulated"].exists)
+        let simulate = app.buttons["simulatePhoneJoin"]
+        reveal(simulate, in: app)
+        simulate.tap()
+        XCTAssertTrue(app.staticTexts["Demo phone proof simulated"].waitForExistence(timeout: 5))
+    }
+
+    func testOrganizerApprovalDoesNotConfirmParticipant() {
+        let app = localApp()
+        app.launch()
+        enterDemo(app)
+        app.buttons["event-event_hack_night"].tap()
+        let approve = app.buttons["approve-proposal_simulated_organizer_review"]
+        reveal(approve, in: app)
+        approve.tap()
+        let notice = app.staticTexts["Organizer approval is recorded. The participant still needs to respond."]
+        reveal(notice, in: app)
+        XCTAssertTrue(notice.waitForExistence(timeout: 5))
+        XCTAssertFalse(approve.exists)
+        XCTAssertFalse(app.staticTexts["Confirmed: Alex"].exists)
+        capture(app, name: "Organizer approval still awaits participant")
     }
 
     func testNativePickerCancellationDoesNotSelectContacts() {
-        let app = XCUIApplication()
+        let app = localApp()
         app.launch()
         enterDemo(app)
         app.buttons["event-event_charity_5k"].tap()

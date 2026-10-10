@@ -61,6 +61,14 @@ struct EventListView: View {
                 }
                 Section {
                     Button { showCreate = true } label: { Label("Create an event", systemImage: "plus.circle.fill") }
+                        .disabled(!session.canCreateEvents)
+                    if client.mode == .live && !session.canCreateEvents {
+                        Text("Verify your phone before creating an event. Existing events remain available to your account.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    } else if client.mode == .live {
+                        Label("Phone verified for this session", systemImage: "checkmark.circle")
+                            .font(.footnote)
+                    }
                     Button { showPhone = true } label: { Label("Connect iMessage", systemImage: "message") }
                 }
             }
@@ -76,8 +84,10 @@ struct EventListView: View {
                     .accessibilityLabel("Account")
                 }
             }
-            .sheet(isPresented: $showCreate) { EventCreateView(client: client) }
-            .sheet(isPresented: $showPhone) { OnboardingAndLinkPhoneView(mode: client.mode) }
+            .sheet(isPresented: $showCreate) {
+                if session.canCreateEvents { EventCreateView(client: client) }
+            }
+            .sheet(isPresented: $showPhone) { OnboardingAndLinkPhoneView(client: client) }
             .task(id: retry) { await subscribe() }
         }
     }
@@ -94,6 +104,7 @@ struct EventListView: View {
         } catch {
             guard !Task.isCancelled else { return }
             events = []
+            if error as? RallyClientError == .authenticationRequired { session.authenticationExpired() }
             self.error = error.localizedDescription
             loading = false
         }

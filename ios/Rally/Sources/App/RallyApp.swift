@@ -2,7 +2,9 @@ import SwiftUI
 
 @main
 struct RallyApp: App {
-    @StateObject private var session = AppSession()
+    @StateObject private var session = AppSession(
+        configuration: ProcessInfo.processInfo.arguments.contains("--rally-local-tests") ? nil : LiveConfiguration.load()
+    )
 
     var body: some Scene {
         WindowGroup {
@@ -15,10 +17,12 @@ struct RallyApp: App {
 
 struct AuthGate: View {
     @EnvironmentObject private var session: AppSession
+    @State private var displayName = ""
 
     var body: some View {
         if let client = session.client {
             EventListView(client: client)
+                .id(session.identityGeneration)
         } else {
             NavigationStack {
                 ScrollView {
@@ -41,22 +45,36 @@ struct AuthGate: View {
                             IntroRow(icon: "checkmark.circle", title: "See what’s confirmed", detail: "Check assignments and see who Rally is waiting for.")
                         }
                         VStack(spacing: 12) {
+                            TextField("Your name", text: $displayName)
+                                .textContentType(.name)
+                                .textFieldStyle(.roundedBorder)
+                                .accessibilityIdentifier("registrationName")
+                                .disabled(session.isSigningIn || session.canRetryRegistration)
                             Button {
-                                Task { await session.signIn() }
+                                Task {
+                                    if session.canRetryRegistration { await session.retryRegistration() }
+                                    else { await session.signIn(displayName: displayName) }
+                                }
                             } label: {
                                 HStack {
                                     if session.isSigningIn { ProgressView() }
-                                    Text("Sign in").frame(maxWidth: .infinity)
+                                    Text(session.isRegistering ? "Preparing your account…" : session.canRetryRegistration ? "Retry account setup" : "Sign in")
+                                        .frame(maxWidth: .infinity)
                                 }.padding(.vertical, 8)
                             }
                             .buttonStyle(.borderedProminent)
                             .disabled(!session.liveConfigured || session.isSigningIn)
+                            if session.canRetryRegistration || session.isSigningIn {
+                                Button("Cancel account setup") { Task { await session.signOut() } }
+                                    .accessibilityIdentifier("cancelAccountSetup")
+                            }
                             if !session.liveConfigured {
                                 Text("Live sign-in isn’t configured for this build.")
                                     .font(.footnote).foregroundStyle(.secondary)
                             }
                             Button("Explore demo") { session.enterDemo() }
                                 .buttonStyle(.bordered)
+                                .disabled(session.isSigningIn || session.canRetryRegistration)
                                 .accessibilityIdentifier("exploreDemo")
                             Text("Demo uses fictional people and local data. No messages are sent.")
                                 .font(.footnote).foregroundStyle(.secondary)

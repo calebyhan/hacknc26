@@ -19,9 +19,9 @@ final class LiveTests: XCTestCase {
             if case .loading = state, !Thread.isMainThread { backgroundLoading.fulfill() }
         }
         defer { observation.cancel() }
-        let session = AppSession(configuration: configuration, makeAuthClient: { _ in client })
+        let session = AppSession(configuration: configuration, makeAuthClient: { _ in client }, clearCredentialCache: { true })
 
-        await session.signIn()
+        await session.signIn(displayName: "Fixture organizer")
         await fulfillment(of: [backgroundLoading], timeout: 2)
 
         XCTAssertNil(session.client)

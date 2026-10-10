@@ -5,11 +5,17 @@ enum ClientMode: Sendable { case demo, live }
 @MainActor
 protocol RallyClient {
     var mode: ClientMode { get }
+    func register(displayName: String) async throws -> String
+    func beginPhoneLink(phoneE164: String, idempotencyKey: String) async throws -> PhoneLinkChallenge
+    func completePhoneLink(invitationID: String) async throws -> String
     func events() -> AsyncThrowingStream<[EventSummary], Error>
     func detail(eventID: String) -> AsyncThrowingStream<EventDetail, Error>
     func createEvent(_ input: CreateEventInput) async throws -> String
     func createInvitations(eventID: String, contacts: [SelectedContact], idempotencyKey: String) async throws -> [CreatedInvitation]
     func createTask(_ input: CreateTaskInput) async throws -> String
+    func confirmDraft(eventID: String, expectedVersion: Int) async throws -> String
+    func organizerInvitation(eventID: String, idempotencyKey: String) async throws -> PhoneLinkChallenge
+    func approveProposal(proposalID: String) async throws
 }
 
 enum RallyClientError: Error, LocalizedError, Equatable, Sendable {
