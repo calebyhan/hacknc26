@@ -8,6 +8,7 @@ Usage: open a session in the lane's branch/worktree and paste the file's content
 |---|---|---|
 | 0 | `00-bootstrap.md` | Bootstrap owner (usually Lane B) |
 | 1 | `lane-a-messaging.md`, `lane-b-domain.md`, `lane-c-ai.md`, `lane-d-ios.md` | One per lane, in parallel |
+| 1a | `lane-d-ios-remaining.md` | Lane D continuation after the initial app slice; includes A/B integration dependencies |
 | 2 | `m1-messaging-domain.md` | A + B at ~8h |
 | 3 | `m2-ai-and-app.md` | B + C (+ D) at ~12h |
 | 4 | `m3-freeze.md` | Everyone at ~18h |

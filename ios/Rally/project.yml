@@ -1,0 +1,92 @@
+name: Rally
+options:
+  bundleIdPrefix: dev.rally
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+packages:
+  Convex:
+    url: https://github.com/get-convex/convex-swift
+    exactVersion: 0.8.1
+  ConvexAuth0:
+    url: https://github.com/get-convex/convex-swift-auth0
+    exactVersion: 0.4.0
+  Auth0:
+    url: https://github.com/auth0/Auth0.swift
+    exactVersion: 2.17.0
+targets:
+  Rally:
+    type: application
+    platform: iOS
+    sources: [Sources]
+    configFiles:
+      Debug: Configuration/Base.xcconfig
+      Release: Configuration/Base.xcconfig
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.rally.companion
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: 1
+        GENERATE_INFOPLIST_FILE: YES
+    info:
+      path: Configuration/Info.plist
+      properties:
+        CFBundleDisplayName: Rally
+        RallyConvexDeploymentURL: $(RALLY_CONVEX_URL)
+        RallyAuth0Domain: $(AUTH0_DOMAIN)
+        RallyAuth0ClientID: $(AUTH0_CLIENT_ID)
+        CFBundleURLTypes:
+          - CFBundleURLSchemes: [$(PRODUCT_BUNDLE_IDENTIFIER)]
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    dependencies:
+      - package: Convex
+        product: ConvexMobile
+      - package: ConvexAuth0
+        product: ConvexAuth0
+      - package: Auth0
+        product: Auth0
+    postBuildScripts:
+      - name: Generate Auth0 configuration
+        path: Configuration/generate-auth0-plist.sh
+        basedOnDependencyAnalysis: false
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Auth0.plist
+  RallyTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [Tests]
+    dependencies:
+      - target: Rally
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+  RallyUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: Rally
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  Rally:
+    build:
+      targets:
+        Rally: all
+    test:
+      targets:
+        - RallyTests
+        - RallyUITests
+      gatherCoverageData: true
