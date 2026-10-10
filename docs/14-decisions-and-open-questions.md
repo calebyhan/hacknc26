@@ -91,6 +91,12 @@
 
 ## Blocking questions (resolve in first 2 hours)
 
+### Lane D + A/B merge review, 2026-10-10
+
+The user authorized merging Lane D first, pulling `main`, then integrating A/B; live M1 testing is explicitly deferred. Lane D's merge preserves ADR-017; Lane B's colliding identity/domain decision is now ADR-018. Independent integration review found the frozen Swift query/mutation signatures compatible and Lane C execution-cache additions optional. Original lane-owner acknowledgments were not collected; this merge follows the user's explicit instruction, with cross-lane review and tests recorded in [integration evidence](21-messaging-domain-integration.md#combined-merge-validation).
+
+M1 remains the current live milestone. The existing seed cannot establish real consent or assignments. The [corrected M1 runbook](../prompts/m1-messaging-domain.md) uses genuine authenticated setup and actual participant JOIN/YES/NO. The iOS app's account registration, phone-link, task-time and event-confirmation/opt-in wiring remains M2 work; backend availability alone does not complete that app flow. Earlier branch-specific statements below are historical evidence, not the combined checkout's current implementation status.
+
 ### Lane A–B integration follow-up, 2026-10-10
 
 **173 tests in 11 files pass**, including 13 signed synthetic webhook → actual scheduled router/domain → fake provider pipeline scenarios. Regression tests first reproduced delayed STOP/LEAVE cancellation races, stale-offer ambiguity and status incorrectly labeling organizer approval as participant response. STOP/LEAVE now cancel pending offers transactionally; YES/NO selects snapshot-valid offers; shared status counts distinguish both approval stages. No persisted state enum or endpoint signature changed; optional `approvalCount` extends the shared copy input. See [integration evidence](21-messaging-domain-integration.md). Actual multi-phone M1 and real app login remain unverified; no fake fixture was deployed as live event consent.

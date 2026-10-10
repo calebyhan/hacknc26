@@ -1,6 +1,6 @@
 # Rally iOS companion
 
-Lane D's first slice: a SwiftUI setup/status app with an explicit in-memory demo and a configurable Convex/Auth0 adapter. Live backend handlers are still stubs. Phone linking and a real iMessage-driven update are not implemented end to end; this does **not** close T6, M2 or ST-15.
+Lane D's first slice: a SwiftUI setup/status app with an explicit in-memory demo and a configurable Convex/Auth0 adapter. The merged Lane A/B backend now implements authenticated account, event/task and messaging operations. The app still needs to wire account registration before protected queries, phone linking before event ownership, task time windows, draft confirmation and organizer messaging opt-in. Phone linking and a real iMessage-driven update are not implemented end to end; this does **not** close T6, M2 or ST-15.
 
 ## Open and run
 
@@ -52,12 +52,13 @@ On this machine Xcode 26.6 lists the iOS 26.5 SDK but its scheme destination res
 ./scripts/test-simulator.sh YOUR_SIMULATOR_UDID
 ```
 
-The script builds arm64 simulator targets, runs the tests and saves the result bundle under ignored `TestResults/`. Its build, manifest generation and test commands were exercised separately; the combined wrapper has not been run end to end. The manifest includes version-sensitive runner flags verified with Xcode 26.6; revalidate after Xcode upgrades. The script neither downloads runtimes nor changes signing, accounts, SDKs or simulator runtime mappings. The normal Xcode path remains preferable once platform setup is repaired.
+The script builds arm64 simulator targets, runs the tests and saves the result bundle under ignored `TestResults/`. The combined wrapper passed end to end during merge verification with Xcode 27.0 and an iOS 26.2 simulator (see below). The manifest includes version-sensitive runner flags; revalidate after Xcode upgrades. The script neither downloads runtimes nor changes signing, accounts, SDKs or simulator runtime mappings. The normal Xcode path remains preferable once platform setup is repaired.
 
 Core tests cover forward-compatible state decoding, milliseconds/wire keys, minimal selected-contact payloads, phone normalization, pending/confirmed separation, simulated acceptance, scoped mock access, organizer-only mutations, invitation state and idempotency. Live adapter tests cover public configuration validation, numeric/optional encoding, connectivity labels and background SDK login notifications. UI tests cover event creation, proposed versus confirmed state, simulated acceptance, fictional invitations, large text, unavailable phone linking, and native picker cancellation.
 
 ## Verification record — 2026-10-10
 
+- Merge verification from a clean detached checkout of `48335d7`: `npm ci && npm run check` passed all 64 backend/bootstrap tests. `./scripts/test-simulator.sh <booted-simulator-UDID>` passed end to end on Xcode 27.0 / iOS 26.2: build succeeded, all 16 Core/Live unit tests and all five UI tests passed (21 total, zero failures). No local configuration was copied into the verification checkout. These are simulator/demo tests, not live M1 or ST-15 evidence.
 - `npm ci && npm run check`: strict TypeScript checks and all 64 existing backend/bootstrap tests passed.
 - Target-only `xcodebuild build` for arm64 `iphonesimulator`: app and test targets compiled. The app was installed and launched on iOS 26.2; welcome, event list and pending assignment screens were visually inspected.
 - All 16 Core/Live XCTest cases passed on the iOS 26.2 simulator after the sign-in crash fix. The original 15 also passed in a temporary macOS harness. The new regression uses the real Convex SDK with a fixture auth rejection and verifies background loading notifications safely return to the sign-in gate.

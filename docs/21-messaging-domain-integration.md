@@ -59,3 +59,17 @@ git diff --check: passed
 ```
 
 The cloud crypto check is a **synthetic self-check**, not a Photon send. No simulation fixture or fake consent was written to the live deployment. Existing real HELP/onboarding transport evidence remains in `19-messaging-evidence.md`. The **separate live M1 gate** still needs actual selected participants to JOIN and the target's real Photon YES; these simulations do not replace that trace. Genuine app login has not been observed, and Lane C free-text reasoning remains unimplemented.
+
+## Combined merge validation
+
+On 2026-10-10 the user requested Lane D → `main`, then `git pull`, then A/B integration for M1. Lane D (`48335d7`) was merged as `eabd550`; `git pull --ff-only origin main` completed immediately afterward and the merge was pushed. Lane B (`77c8f0c`) already includes Lane A (`63bb5c5`), so merging B preserves both lanes. The only merge conflict was the duplicate ADR-017 identifier: both decisions were retained, with B's decision renumbered ADR-018.
+
+Independent review checked A/B messaging/domain paths and compatibility with the Swift adapter and Lane C stubs. Existing client signatures remain unchanged; optional read labels, copy input and execution-cache fields are additive. This is integration review under the user's merge authorization, not an assertion that the original lane owners separately acknowledged changes. Historical acknowledgment requests above describe their pre-merge handoff.
+
+`npm ci && npm run check` passed separately for Lane D (64 tests), A/B (173 tests), and the combined D+A/B tree (173 tests in 11 files, including all 13 signed pipeline simulations). Root/shared/worker strict typechecks passed; `npm run contracts:list` reported 38 functions; `git diff --check` passed. Installed packages match the lockfile (`npm ls --depth=0`). Lane D's merge also passed GitHub Actions. No provider or model call is part of these tests. The live M1 run is deferred at the user's request; no new live trace, deployment or messaging consent is claimed.
+
+The unchanged iOS source passed `./scripts/test-simulator.sh <booted-simulator-UDID>` end to end from a clean Lane D checkout on Xcode 27.0 / iOS 26.2. Build succeeded; all 16 Core/Live unit tests and all five UI tests passed with zero failures. No local app configuration was copied into that checkout. See the [app verification record](../ios/Rally/README.md#verification-record--2026-10-10).
+
+The M1 prompt now uses the authenticated setup script rather than the simulation seed, requires persisted originator evidence/current versions, establishes initial assignments by real acceptance, and separates the NO scenario from the already-accepted task. Two phones can exercise organizer-to-participant reassignment; the canonical separate Alex/Maya/Jordan roles need three real consenting participants.
+
+The iOS adapter still needs registration before protected queries, phone linking before event ownership, task windows (required for assignment eligibility), draft confirmation and organizer event JOIN. These are documented M2 follow-ups, not implied by the backend merge. Unknown Photon delivery outcomes still require reconciliation; no provider receipt or exactly-once external delivery guarantee was added.

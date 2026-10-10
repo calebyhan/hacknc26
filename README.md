@@ -78,7 +78,7 @@ Rally/
   .github/workflows/        # npm ci + npm run check on PRs to main
 ```
 
-The P1 `ios/Rally/` app is not created by Prompt 0.
+The P1 [`ios/Rally/`](ios/Rally/README.md) companion is present with a tested local demo and Convex/Auth0 adapter. Live account provisioning, phone linking and the M2/ST-15 app acceptance flow remain incomplete.
 
 ## Local bootstrap checks
 
@@ -111,7 +111,7 @@ Prompt 0 is complete only after local checks pass, the contract inventory is ver
 3. Use the [authenticated domain setup runbook](docs/20-domain-evidence.md) to link the organizer's actual phone, create an event/tasks and prepare invitations. Every recipient must send their own JOIN; setup never invents consent.
 4. Run `prompts/m1-messaging-domain.md`: verify genuine event JOIN/STATUS and a second participant's real YES committing one reassignment. The deterministic protocol already passes under `FakeMessagingAdapter`.
 5. Add the local model worker only after the deterministic vertical slice is passing.
-6. Add SwiftUI setup and status; add weather only after core flow is robust.
+6. Finish the existing SwiftUI companion's live integration; add weather only after core flow is robust.
 
 Do not copy pseudo-interfaces from these docs directly as if they are real SDK signatures; external APIs must be checked against pinned versions.
 
