@@ -15,7 +15,7 @@ Avoid building five disconnected impressive components. Ship one complete iMessa
 | 19–21h | Weather first; flyer parsing only if weather is done | One authentic or labeled simulated proactive flow |
 | 21–24h | Security, integration tests, rehearsal | P0 demo gate and backup video |
 
-Rows are in dependency order and match the implementation order in `CLAUDE.md`. With more than one person, the iOS workstream can start earlier in parallel against the shared fixture contract; it is not on the P0 path (ADR-013). These are not guarantees for a single developer.
+Rows are in dependency order and match the implementation order in `CLAUDE.md`. With more than one person, the iOS workstream can start earlier in parallel against the shared fixture contract; it is not on the P0 path (ADR-013). These are not guarantees for a single developer. For the 4-person parallel split, contract and checkpoints, see `17-workstreams.md`.
 
 ## Suggested task split
 

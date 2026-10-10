@@ -19,6 +19,8 @@
 | `14-decisions-and-open-questions.md` | ADRs and unverified dependencies | Preventing assumptions |
 | `15-sources.md` | Provider documentation links and source provenance | Updating SDKs |
 | `16-agent-task-board.md` | Assignable coding tickets and dependencies | Starting implementation |
+| `17-workstreams.md` | 4-lane parallel plan, frozen contract, file ownership, checkpoints | Team kickoff; before any contract change |
+| `../prompts/` | Kickoff prompts per lane and checkpoint | Starting a lane or checkpoint session |
 
 ## How to use
 

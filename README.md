@@ -68,6 +68,7 @@ Rally/
   AGENTS.md                 # Mandatory agent guidance
   CLAUDE.md                 # Claude Code entrypoint
   docs/                     # Design and acceptance criteria
+  prompts/                  # Agent kickoff prompts per lane/checkpoint (docs/17)
   convex/                   # Convex schema, routes, functions, tasks
   packages/shared/          # Zod schemas, pure planners, typed contracts
   worker/                   # Local Claude inference worker

@@ -64,6 +64,8 @@ Do not silently substitute a mocked provider for real Photon in demo documentati
 
 ## First four coding tasks
 
+Working as a team? Use the lane split and prompts in `docs/17-workstreams.md` and `prompts/` instead of this sequential list.
+
 1. Setup the repo and integrate Photon/Convex to **receive and send a real opted-in DM**; persist and dedupe (ticket T0).
 2. Deterministic domain/test harness (`users`, `events`, `memberships`, `tasks`, `commitments`, `proposals`, `invitations`), invitations and command router (T1, T2).
 3. Build `propose_reassignment → accept/reject → commit` as a deterministic, idempotent workflow (T3).
