@@ -97,6 +97,7 @@ struct EventCreateView: View {
         } catch {
             guard !Task.isCancelled, session.identityGeneration == generation else { return }
             self.error = error.localizedDescription
+            if error as? RallyClientError == .authenticationRequired { session.authenticationExpired() }
         }
     }
 }

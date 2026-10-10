@@ -89,6 +89,16 @@
 - Impact on tests/security: test public configuration validation, plain numeric wire encoding (Swift SDK integer encoding is a different Convex type), omitted optionals, selected-contact payloads, and explicitly simulated state changes. Mock authorization tests do not prove server authorization. Auth0 sign-in does not prove control of a phone number or enrollment.
 - Evidence / link: official [Swift overview](https://docs.convex.dev/client/swift/overview), [Convex 0.8.1 source](https://github.com/get-convex/convex-swift/tree/0.8.1), [Auth0 adapter 0.4.0 manifest/source](https://github.com/get-convex/convex-swift-auth0/tree/0.4.0), [app verification record](../ios/Rally/README.md), and [Lane D continuation](../prompts/lane-d-ios-remaining.md). Package signatures and versions were read from these sources. The user reported successful simulator sign-in; backend token acceptance, physical-device operation, live delivery and ST-15 remain unverified.
 
+### ADR-019 — Authorized iOS status and expiring participant routing
+- Date: 2026-10-10
+- State: DECIDED (implementation and offline verification); VERIFY (deployment, actual provider allocation and live device behavior)
+- Context: The user requested all remaining Lane D work except live testing. Account restoration, consent, progress, activity, routing and public error contracts were the remaining code gaps after the merged A/B baseline.
+- Decision: Add caller-only account/route reads and member-scoped event status/progress. Derive consent separately from app membership, and expose only static redacted activity plus the caller's delivery states. Return strict versioned public error codes; never parse raw server messages on iOS. Preserve existing mutation signatures and internal errors.
+- Routing: Installed Spectrum iMessage 12.10.1 can report `shared`; sender/space ID is the participant, not the bot. Accept only the newest authenticated dedicated `linePhone` or a trusted internal provider allocation. Bound validity to 24 hours, expose expiry for client-side disabling, and persist revocation tombstones. Expired/revoked provisioning suppresses fallback. Another participant's route is never an invitation handoff.
+- Alternatives: A universal number, sticky component registry or older-message fallback could open the wrong conversation and were rejected. Automatic provider lookup is deferred until an authoritative allocation interface is verified; the implemented internal provisioning contract permits honest unavailable state now.
+- Impact on tests/security: In-memory backend tests cover scope/redaction/consent/state and route rotation/replay/TTL/revocation; Swift tests cover account restoration and strict SDK decoding. Demo opening of Messages stays disabled. No real login, provider configuration, cloud writes or sends were used.
+- Evidence / link: [Implemented contracts and provisioning handoff](22-ios-app-contracts.md), [app verification](../ios/Rally/README.md). This supersedes ADR-017's missing challenge/status contract boundary; its live acceptance boundary remains.
+
 ## Blocking questions (resolve in first 2 hours)
 
 ### Lane D + A/B merge review, 2026-10-10

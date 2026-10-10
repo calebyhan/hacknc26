@@ -100,7 +100,7 @@ describe("Lane B deterministic domain (simulation; no model or real provider)", 
   });
   it("ST-10/17: public APIs authenticate and authorize; private events never appear in status", async () => {
     const { t, ids } = await fixture();
-    await expect(t.query(api.events.detail, { eventId: ids.event })).rejects.toThrow("UNAUTHORIZED");
+    await expect(t.query(api.events.detail, { eventId: ids.event })).rejects.toMatchObject({ data: { version: 1, code: "AUTHENTICATION_REQUIRED" } });
     const alex = t.withIdentity({ subject: "fixture|alex" });
     expect((await alex.query(api.events.myEvents, {})).map(e => e._id)).toEqual([ids.event]);
     const status = await t.query(internal.domain.statusFor, { userId: ids.jordan });
@@ -123,12 +123,12 @@ describe("Lane B setup and approvals (simulation)", () => {
     const input = { title: "Another event", kind: "event" as const, startsAt: Date.now() + 86400000, timezone: "America/New_York", idempotencyKey: "create-event" };
     const eventId = await alex.mutation(api.events.create, input);
     expect(await alex.mutation(api.events.create, input)).toBe(eventId);
-    await expect(alex.mutation(api.events.create, { ...input, title: "Conflicting retry" })).rejects.toThrow("IDEMPOTENCY_CONFLICT");
-    await expect(alex.mutation(api.events.create, { ...input, timezone: "invalid", idempotencyKey: "invalid" })).rejects.toThrow();
+    await expect(alex.mutation(api.events.create, { ...input, title: "Conflicting retry" })).rejects.toMatchObject({ data: { version: 1, code: "IDEMPOTENCY_CONFLICT" } });
+    await expect(alex.mutation(api.events.create, { ...input, timezone: "invalid", idempotencyKey: "invalid" })).rejects.toMatchObject({ data: { version: 1, code: "INVALID_INPUT" } });
     const taskInput = { eventId, title: "setup", windowStart: input.startsAt, windowEnd: input.startsAt + 3600000, expectedEventVersion: 1, idempotencyKey: "new-task" };
     const taskId = await alex.mutation(api.tasks.create, taskInput);
     expect(await alex.mutation(api.tasks.create, taskInput)).toBe(taskId);
-    await expect(alex.mutation(api.tasks.create, { ...taskInput, windowEnd: input.startsAt, idempotencyKey: "bad-window" })).rejects.toThrow();
+    await expect(alex.mutation(api.tasks.create, { ...taskInput, windowEnd: input.startsAt, idempotencyKey: "bad-window" })).rejects.toMatchObject({ data: { version: 1, code: "INVALID_INPUT" } });
     expect(await f.t.run(ctx => ctx.db.get(eventId))).toMatchObject({ status: "draft", version: 1 });
     await alex.mutation(api.events.confirmDraft, { eventId, expectedVersion: 1 });
     await alex.mutation(api.events.confirmDraft, { eventId, expectedVersion: 1 });
@@ -142,11 +142,11 @@ describe("Lane B setup and approvals (simulation)", () => {
     const outsider = await f.t.run(ctx => ctx.db.insert("users", { authSubject: "fixture|outsider", displayName: "Outsider", messagingState: "active", createdAt: Date.now(), settings: {} }));
     const missingEvent = await f.t.run(async ctx => { const id = await ctx.db.insert("events", { title: "Deleted", kind: "event", startsAt: Date.now(), timezone: "UTC", ownerId: outsider, status: "draft", version: 1 }); await ctx.db.delete(id); return id; });
     const client = f.t.withIdentity({ subject: "fixture|outsider" });
-    for (const eventId of [f.ids.event, missingEvent]) await expect(client.query(api.events.detail, { eventId })).rejects.toThrow("UNAUTHORIZED");
+    for (const eventId of [f.ids.event, missingEvent]) await expect(client.query(api.events.detail, { eventId })).rejects.toMatchObject({ data: { version: 1, code: "ACCESS_DENIED" } });
     await f.t.run(ctx => ctx.db.insert("memberships", { userId: outsider, eventId: f.ids.event, role: "member", state: "invited", notificationsEnabled: false }));
     expect(await client.query(api.events.myEvents, {})).toEqual([]);
-    await expect(client.query(api.events.detail, { eventId: f.ids.event })).rejects.toThrow("UNAUTHORIZED");
-    await expect(client.mutation(api.tasks.create, { eventId: f.ids.event, title: "bad", expectedEventVersion: 1, idempotencyKey: "bad" })).rejects.toThrow("UNAUTHORIZED");
+    await expect(client.query(api.events.detail, { eventId: f.ids.event })).rejects.toMatchObject({ data: { version: 1, code: "ACCESS_DENIED" } });
+    await expect(client.mutation(api.tasks.create, { eventId: f.ids.event, title: "bad", expectedEventVersion: 1, idempotencyKey: "bad" })).rejects.toMatchObject({ data: { version: 1, code: "ACCESS_DENIED" } });
   });
   it("bootstrap is authenticated, idempotent, labeled, and never fabricates consent or commitments", async () => {
     const f = await fixture(), alex = f.t.withIdentity({ subject: "fixture|alex" });
@@ -168,7 +168,7 @@ describe("Lane B setup and approvals (simulation)", () => {
     expect(outbox.map(o => o.recipientUserId)).toEqual([f.ids.alex]);
     await expect(f.t.mutation(internal.proposals.respond, { proposalId: p, actorId: f.ids.jordan, sourceMessageId: await f.message(f.ids.jordan, "YES"), response: "accept" })).rejects.toThrow("ORGANIZER_APPROVAL_REQUIRED");
     await f.t.run(ctx => ctx.db.patch(f.ids.maya, { authSubject: "fixture|maya" }));
-    await expect(f.t.withIdentity({ subject: "fixture|maya" }).mutation(api.proposals.approve, { proposalId: p })).rejects.toThrow("UNAUTHORIZED");
+    await expect(f.t.withIdentity({ subject: "fixture|maya" }).mutation(api.proposals.approve, { proposalId: p })).rejects.toMatchObject({ data: { version: 1, code: "ACCESS_DENIED" } });
     const alex = f.t.withIdentity({ subject: "fixture|alex" });
     await alex.mutation(api.proposals.approve, { proposalId: p }); await alex.mutation(api.proposals.approve, { proposalId: p });
     outbox = await f.t.run(ctx => ctx.db.query("outboundMessages").collect());

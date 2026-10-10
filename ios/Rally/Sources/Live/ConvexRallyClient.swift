@@ -42,6 +42,22 @@ final class ConvexRallyClient: RallyClient {
                                 failure: "Your Rally account could not be prepared. Try again or sign in again.")
     }
 
+    func account() -> AsyncThrowingStream<AccountStatus, Error> {
+        stream(transport.subscribe("accounts:current", arguments: [:]))
+    }
+
+    func rallyRoute() -> AsyncThrowingStream<RallyRoute, Error> {
+        stream(transport.subscribe("appStatus:route", arguments: [:]))
+    }
+
+    func eventStatus(eventID: String) -> AsyncThrowingStream<EventAppStatus, Error> {
+        stream(transport.subscribe("appStatus:event", arguments: ["eventId": eventID]))
+    }
+
+    func eventProgress() -> AsyncThrowingStream<[EventProgressSummary], Error> {
+        stream(transport.subscribe("appStatus:overview", arguments: [:]))
+    }
+
     func beginPhoneLink(phoneE164: String, idempotencyKey: String) async throws -> PhoneLinkChallenge {
         let phone = try ContactNormalization.normalize(phoneE164)
         return try await mutate("accounts:beginPhoneLink", PhoneArguments(phoneE164: phone, idempotencyKey: idempotencyKey),
@@ -103,7 +119,7 @@ final class ConvexRallyClient: RallyClient {
             throw CancellationError()
         } catch {
             if Task.isCancelled { throw CancellationError() }
-            throw RallyClientError.unavailable(failure)
+            throw PublicBackendError.sanitize(error, fallback: failure)
         }
     }
 
@@ -128,12 +144,48 @@ final class ConvexRallyClient: RallyClient {
             token.store(publisher.sink { completion in
                 switch completion {
                 case .finished: continuation.finish()
-                case .failure:
-                    continuation.finish(throwing: RallyClientError.unavailable("This data could not be loaded for your account. Retry or sign in again. Previously loaded data has been cleared."))
+                case .failure(let error):
+                    continuation.finish(throwing: PublicBackendError.sanitize(error, fallback: "This data could not be loaded for your account. Retry or sign in again. Previously loaded data has been cleared."))
                 }
             } receiveValue: { value in
                 continuation.yield(value)
             })
+        }
+    }
+}
+
+/// The installed SDK passes ConvexError's data as serialized JSON. Only the
+/// explicit versioned public payload grants typed semantics; ServerError text,
+/// malformed JSON and unknown versions/codes always receive safe fallback copy.
+private enum PublicBackendError {
+    private struct Payload: Decodable { let version: Int; let code: String }
+
+    static func sanitize(_ error: Error, fallback: String) -> Error {
+        guard let sdkError = error as? ClientError,
+              case .ConvexError(let raw) = sdkError,
+              let data = raw.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              Set(object.keys) == Set(["version", "code"]),
+              let payload = try? JSONDecoder().decode(Payload.self, from: data),
+              payload.version == 1 else { return RallyClientError.unavailable(fallback) }
+        switch payload.code {
+        case "AUTHENTICATION_REQUIRED": return RallyClientError.authenticationRequired
+        case "ACCESS_DENIED": return RallyClientError.accessDenied
+        case "INVALID_INPUT": return RallyClientError.validation("Check the details and try again.")
+        case "PHONE_LINK_REQUIRED": return RallyClientError.phoneLinkRequired
+        case "PHONE_PROOF_REQUIRED": return PhoneLinkFailure.proofRequired
+        case "PHONE_CHALLENGE_EXPIRED": return PhoneLinkFailure.expired
+        case "PHONE_IDENTITY_CONFLICT": return PhoneLinkFailure.identityConflict
+        case "PHONE_CHANGE_NOT_SUPPORTED": return PhoneLinkFailure.phoneChangeUnsupported
+        case "LINK_PHONE_BEFORE_CREATING_EVENTS": return PhoneLinkFailure.linkBeforeEvents
+        case "IDEMPOTENCY_CONFLICT": return RallyClientError.idempotencyConflict
+        case "STALE_EVENT": return RallyClientError.staleEvent
+        case "STALE_TASK": return RallyClientError.staleTask
+        case "EVENT_CLOSED": return RallyClientError.eventClosed
+        case "INVALID_EVENT_TRANSITION": return RallyClientError.invalidEventTransition
+        case "ALREADY_ENROLLED": return RallyClientError.alreadyEnrolled
+        case "INVITATIONS_UNAVAILABLE": return RallyClientError.invitationsUnavailable
+        default: return RallyClientError.unavailable(fallback)
         }
     }
 }

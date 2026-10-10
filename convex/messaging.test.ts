@@ -150,7 +150,7 @@ describe("Lane A invitations and routing (simulation)", () => {
   it("creates only hashed invitations, no sends, and exact retries return the same code", async () => {
     const t = setup();
     const owner = await organizer(t);
-    await expect(t.mutation(api.invitations.createForContacts, { eventId: owner.eventId, contacts: [], idempotencyKey: "fixture" })).rejects.toThrow("UNAUTHORIZED");
+    await expect(t.mutation(api.invitations.createForContacts, { eventId: owner.eventId, contacts: [], idempotencyKey: "fixture" })).rejects.toMatchObject({ data: { version: 1, code: "AUTHENTICATION_REQUIRED" } });
     const first = await invite(t, owner.eventId);
     expect(await invite(t, owner.eventId)).toEqual(first);
     const invitations = await t.run((ctx) => ctx.db.query("invitations").collect());
@@ -167,7 +167,7 @@ describe("Lane A invitations and routing (simulation)", () => {
       const userId = await ctx.db.insert("users", { displayName: "Member", authSubject: "fixture-member", createdAt: Date.now(), messagingState: "active", settings: {} });
       await ctx.db.insert("memberships", { userId, eventId: owner.eventId, role: "member", state: "enrolled", notificationsEnabled: false });
     });
-    await expect(t.withIdentity({ subject: "fixture-member" }).mutation(api.invitations.createForContacts, { eventId: owner.eventId, contacts: [], idempotencyKey: "fixture" })).rejects.toThrow("UNAUTHORIZED");
+    await expect(t.withIdentity({ subject: "fixture-member" }).mutation(api.invitations.createForContacts, { eventId: owner.eventId, contacts: [], idempotencyKey: "fixture" })).rejects.toMatchObject({ data: { version: 1, code: "ACCESS_DENIED" } });
   });
   it("enrolls only the selected sender, records consent and rejects invitation replay", async () => {
     const t = setup();

@@ -1,3 +1,4 @@
+import { withPublicErrors } from "./lib/publicErrors";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { internalMutation, mutation } from "./_generated/server";
@@ -90,12 +91,12 @@ export const cancelForUser = internalMutation({
 /** Additive app approval path: ctx.auth and organizer role, never participant acceptance. */
 export const approve = mutation({
   args: { proposalId: v.id("proposals") }, returns: v.null(),
-  handler: async (ctx, args): Promise<null> => {
+  handler: async (ctx, args): Promise<null> => withPublicErrors(ctx, async () => {
     const p = await ctx.db.get(args.proposalId);
     if (!p) throw new Error("UNAUTHORIZED");
     const { user } = await requireOrganizer(ctx, p.eventId);
     return approveProposal(ctx, p._id, user._id, "authenticated-app");
-  },
+  }),
 });
 export const expire = internalMutation({
   args: { proposalId: v.id("proposals") }, returns: v.null(),

@@ -211,6 +211,104 @@ final class SessionTests: XCTestCase {
             XCTAssertNil(session.client)
         }
     }
+
+    func testAccountReadMustSucceedBeforeExposureAndRestoresServerPhoneProof() async {
+        let client = SessionFixtureClient()
+        client.accountInitialStatus = nil
+        let subscribed = expectation(description: "Account read started after registration")
+        client.onAccountSubscribe = { subscribed.fulfill() }
+        let session = AppSession(authentication: SessionFixtureAuthentication(client: client))
+        let login = Task { await session.signIn(displayName: "Alex") }
+        await fulfillment(of: [subscribed], timeout: 2)
+        XCTAssertEqual(client.registrationNames, ["Alex"])
+        XCTAssertNil(session.client)
+        XCTAssertFalse(session.phoneVerifiedForSession)
+        client.sendAccount(AccountStatus(userId: "server-canonical", displayName: "Alex", phoneLinked: true, messagingState: .paused))
+        await login.value
+        XCTAssertNotNil(session.client)
+        XCTAssertEqual(session.accountUserID, "server-canonical")
+        XCTAssertTrue(session.phoneVerifiedForSession)
+        XCTAssertTrue(session.canCreateEvents)
+        XCTAssertEqual(session.accountStatus?.messagingState, .paused)
+        await session.signOut()
+    }
+
+    func testAccountSubscriptionRebindsIdentityAndRevokesPhoneProof() async {
+        let client = SessionFixtureClient()
+        client.accountInitialStatus = AccountStatus(userId: "initial", displayName: "Alex", phoneLinked: true, messagingState: .active)
+        let session = AppSession(authentication: SessionFixtureAuthentication(client: client))
+        await session.signIn(displayName: "Alex")
+        let initialGeneration = session.identityGeneration
+        let rebound = expectation(description: "Canonical identity update")
+        let identityToken = session.$accountStatus.dropFirst().sink { if $0?.userId == "replacement" { rebound.fulfill() } }
+        client.sendAccount(AccountStatus(userId: "replacement", displayName: "Alex", phoneLinked: true, messagingState: .active))
+        await fulfillment(of: [rebound], timeout: 2)
+        identityToken.cancel()
+        XCTAssertNotEqual(session.identityGeneration, initialGeneration)
+        let linkedGeneration = session.identityGeneration
+        let revoked = expectation(description: "Phone proof removed")
+        let proofToken = session.$phoneVerifiedForSession.dropFirst().sink { if !$0 { revoked.fulfill() } }
+        client.sendAccount(AccountStatus(userId: "replacement", displayName: "Alex", phoneLinked: false, messagingState: .stopped))
+        await fulfillment(of: [revoked], timeout: 2)
+        proofToken.cancel()
+        XCTAssertFalse(session.canCreateEvents)
+        XCTAssertNotEqual(session.identityGeneration, linkedGeneration)
+        await session.signOut()
+    }
+
+    func testLostAccountReadClearsProtectedStateAndCanRetrySameAuthentication() async {
+        let client = SessionFixtureClient()
+        client.accountInitialStatus = AccountStatus(userId: "registered-account", displayName: "Alex", phoneLinked: true, messagingState: .active)
+        let auth = SessionFixtureAuthentication(client: client)
+        let session = AppSession(authentication: auth)
+        await session.signIn(displayName: "Alex")
+        let cleared = expectation(description: "Protected views removed on read failure")
+        let token = session.$client.dropFirst().sink { if $0 == nil { cleared.fulfill() } }
+        client.failAccount(RallyClientError.unavailable("Fixture disconnected"))
+        await fulfillment(of: [cleared], timeout: 2)
+        token.cancel()
+        XCTAssertNil(session.accountStatus)
+        XCTAssertFalse(session.phoneVerifiedForSession)
+        XCTAssertFalse(session.canCreateEvents)
+        XCTAssertTrue(session.canRetryRegistration)
+        await session.retryRegistration()
+        XCTAssertEqual(auth.loginCount, 1)
+        XCTAssertTrue(session.phoneVerifiedForSession)
+        XCTAssertNotNil(session.client)
+        await session.signOut()
+    }
+
+    func testAccountAuthenticationDenialEndsSessionWithoutRetryingProtectedReads() async {
+        let client = SessionFixtureClient()
+        let auth = SessionFixtureAuthentication(client: client)
+        let session = AppSession(authentication: auth)
+        await session.signIn(displayName: "Alex")
+        let cleared = expectation(description: "Denied account invalidates authentication")
+        let token = session.$client.dropFirst().sink { if $0 == nil { cleared.fulfill() } }
+        client.failAccount(RallyClientError.authenticationRequired)
+        await fulfillment(of: [cleared], timeout: 2)
+        token.cancel()
+        XCTAssertFalse(session.canRetryRegistration)
+        XCTAssertNil(session.accountStatus)
+        XCTAssertEqual(auth.clearCount, 1)
+    }
+
+    func testSignOutCancelsPendingInitialAccountRead() async {
+        let client = SessionFixtureClient()
+        client.accountInitialStatus = nil
+        let subscribed = expectation(description: "Waiting for account")
+        client.onAccountSubscribe = { subscribed.fulfill() }
+        let session = AppSession(authentication: SessionFixtureAuthentication(client: client))
+        let login = Task { await session.signIn(displayName: "Alex") }
+        await fulfillment(of: [subscribed], timeout: 2)
+        await session.signOut()
+        await login.value
+        XCTAssertNil(session.client)
+        XCTAssertNil(session.accountStatus)
+        XCTAssertFalse(session.isSigningIn)
+        client.sendAccount(AccountStatus(userId: "late-account", displayName: "Alex", phoneLinked: true, messagingState: .active))
+        XCTAssertFalse(session.phoneVerifiedForSession)
+    }
 }
 
 @MainActor
@@ -251,6 +349,10 @@ final class SessionFixtureClient: RallyClient {
     var registrationOperation: ((String) async throws -> String)?
     var beginOperation: ((String, String) async throws -> PhoneLinkChallenge)?
     var completeOperation: ((String) async throws -> String)?
+    var accountInitialStatus: AccountStatus? = AccountStatus(userId: "registered-account", displayName: "Alex",
+                                                            phoneLinked: false, messagingState: .active)
+    var onAccountSubscribe: (() -> Void)?
+    private var accountListeners: [UUID: AsyncThrowingStream<AccountStatus, Error>.Continuation] = [:]
     private(set) var registrationNames: [String] = []
     private(set) var requestedKeys: [String] = []
     private(set) var completionCalls = 0
@@ -258,6 +360,28 @@ final class SessionFixtureClient: RallyClient {
         registrationNames.append(displayName)
         return try await registrationOperation?(displayName) ?? "registered-account"
     }
+    func account() -> AsyncThrowingStream<AccountStatus, Error> {
+        let token = UUID()
+        return AsyncThrowingStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
+            accountListeners[token] = continuation
+            if let accountInitialStatus { continuation.yield(accountInitialStatus) }
+            onAccountSubscribe?()
+            continuation.onTermination = { @Sendable [weak self] _ in
+                Task { @MainActor [weak self] in self?.accountListeners.removeValue(forKey: token) }
+            }
+        }
+    }
+    func sendAccount(_ status: AccountStatus) {
+        accountInitialStatus = status
+        for listener in accountListeners.values { listener.yield(status) }
+    }
+    func failAccount(_ error: Error) {
+        for listener in accountListeners.values { listener.finish(throwing: error) }
+        accountListeners.removeAll()
+    }
+    func rallyRoute() -> AsyncThrowingStream<RallyRoute, Error> { .init { $0.yield(.unavailable); $0.finish() } }
+    func eventStatus(eventID: String) -> AsyncThrowingStream<EventAppStatus, Error> { .init { $0.finish(throwing: RallyClientError.accessDenied) } }
+    func eventProgress() -> AsyncThrowingStream<[EventProgressSummary], Error> { .init { $0.yield([]); $0.finish() } }
     func beginPhoneLink(phoneE164: String, idempotencyKey: String) async throws -> PhoneLinkChallenge {
         requestedKeys.append(idempotencyKey)
         if let beginOperation { return try await beginOperation(phoneE164, idempotencyKey) }

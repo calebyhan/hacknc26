@@ -20,9 +20,10 @@ final class RallyUITests: XCTestCase {
         let accept = app.buttons["Simulate Jordan accepting"]
         reveal(accept, in: app)
         accept.tap()
-        app.swipeDown()
-        app.swipeDown()
-        app.swipeDown()
+        for _ in 0..<10 {
+            if app.staticTexts["Confirmed: Jordan"].isHittable { break }
+            app.swipeDown()
+        }
         XCTAssertTrue(app.staticTexts["Confirmed: Jordan"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["Proposed: Jordan"].exists)
         capture(app, name: "Demo simulated acceptance")
@@ -34,7 +35,9 @@ final class RallyUITests: XCTestCase {
         enterDemo(app)
         completeDemoPhoneProof(app)
         app.buttons["Done"].tap()
-        app.buttons["Create an event"].tap()
+        let createEvent = app.buttons["Create an event"]
+        reveal(createEvent, in: app)
+        createEvent.tap()
         let title = app.textFields["eventTitle"]
         XCTAssertTrue(title.waitForExistence(timeout: 5))
         title.tap()
@@ -113,6 +116,34 @@ final class RallyUITests: XCTestCase {
         enterDemo(app)
         completeDemoPhoneProof(app)
         capture(app, name: "Phone linked only after explicit demo proof")
+    }
+
+    func testVerifiedDemoRouteStaysDisabledAndStatusSeparatesDelivery() {
+        let app = localApp()
+        app.launch()
+        enterDemo(app)
+        XCTAssertTrue(app.staticTexts["progress-event_charity_5k"].waitForExistence(timeout: 5))
+        completeDemoPhoneProof(app)
+        let route = app.buttons["openRallyMessages"]
+        reveal(route, in: app)
+        XCTAssertFalse(route.isEnabled)
+        capture(app, name: "Demo verified route is disabled")
+        app.buttons["Done"].tap()
+        for _ in 0..<10 {
+            if app.buttons["event-event_charity_5k"].isHittable { break }
+            app.swipeDown()
+        }
+        app.buttons["event-event_charity_5k"].tap()
+        let consent = app.staticTexts["eventMessagingStatus"]
+        reveal(consent, in: app)
+        XCTAssertEqual(consent.label, "Event messages enabled")
+        reveal(route, in: app)
+        XCTAssertFalse(route.isEnabled)
+        let delivery = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Sent to messaging service")).firstMatch
+        reveal(delivery, in: app)
+        XCTAssertTrue(delivery.exists)
+        XCTAssertFalse(app.staticTexts["Delivered"].exists)
+        capture(app, name: "Demo consent and own delivery status")
     }
 
     private func completeDemoPhoneProof(_ app: XCUIApplication) {

@@ -75,7 +75,7 @@ struct ContactReviewView: View {
                         if client.mode == .demo {
                             Text("These demo codes cannot be redeemed.").font(.subheadline.bold())
                         } else {
-                            Text("Rally contact instructions aren’t available in this build. Don’t send a code to an assumed shared number.")
+                            Text("Each participant must use their own provisioned Rally conversation. Your Rally contact shortcut is only for you.")
                                 .font(.subheadline)
                         }
                     }
@@ -159,6 +159,7 @@ struct ContactReviewView: View {
         } catch {
             guard !Task.isCancelled, session.identityGeneration == generation else { return }
             self.error = error.localizedDescription
+            if error as? RallyClientError == .authenticationRequired { session.authenticationExpired() }
         }
     }
 }

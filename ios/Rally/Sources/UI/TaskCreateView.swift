@@ -116,6 +116,7 @@ struct TaskCreateView: View {
             guard !Task.isCancelled, session.identityGeneration == generation else { return }
             currentEvent = nil
             queryError = error.localizedDescription
+            if error as? RallyClientError == .authenticationRequired { session.authenticationExpired() }
         }
     }
 
@@ -139,6 +140,7 @@ struct TaskCreateView: View {
         } catch {
             guard !Task.isCancelled, session.identityGeneration == generation else { return }
             self.error = error.localizedDescription
+            if error as? RallyClientError == .authenticationRequired { session.authenticationExpired() }
         }
     }
 }

@@ -83,6 +83,94 @@ final class AdapterTests: XCTestCase {
             XCTAssertFalse(error.localizedDescription.contains("private-token"))
         }
     }
+
+    func testVersionedStructuredPhoneErrorsPreserveProofAndConflictSemantics() async {
+        let transport = FixtureAPITransport()
+        let client = ConvexRallyClient(transport: transport)
+        let codes: [String: PhoneLinkFailure] = [
+            "PHONE_PROOF_REQUIRED": .proofRequired, "PHONE_CHALLENGE_EXPIRED": .expired,
+            "PHONE_IDENTITY_CONFLICT": .identityConflict, "PHONE_CHANGE_NOT_SUPPORTED": .phoneChangeUnsupported,
+            "LINK_PHONE_BEFORE_CREATING_EVENTS": .linkBeforeEvents
+        ]
+        for (code, expected) in codes {
+            transport.failure = ClientError.ConvexError(data: "{\"version\":1,\"code\":\"\(code)\"}")
+            do { _ = try await client.completePhoneLink(invitationID: "fixture"); XCTFail("Expected \(code)") }
+            catch { XCTAssertEqual(error as? PhoneLinkFailure, expected) }
+        }
+    }
+
+    func testStructuredAuthorizationAndVersionConflictsUseSafeTypedErrors() async {
+        let transport = FixtureAPITransport()
+        let client = ConvexRallyClient(transport: transport)
+        let codes: [String: RallyClientError] = [
+            "AUTHENTICATION_REQUIRED": .authenticationRequired, "ACCESS_DENIED": .accessDenied,
+            "INVALID_INPUT": .validation("Check the details and try again."),
+            "PHONE_LINK_REQUIRED": .phoneLinkRequired, "STALE_EVENT": .staleEvent,
+            "STALE_TASK": .staleTask, "IDEMPOTENCY_CONFLICT": .idempotencyConflict,
+            "EVENT_CLOSED": .eventClosed, "INVALID_EVENT_TRANSITION": .invalidEventTransition,
+            "ALREADY_ENROLLED": .alreadyEnrolled, "INVITATIONS_UNAVAILABLE": .invitationsUnavailable
+        ]
+        for (code, expected) in codes {
+            transport.failure = ClientError.ConvexError(data: "{\"version\":1,\"code\":\"\(code)\"}")
+            do { _ = try await client.confirmDraft(eventID: "fixture", expectedVersion: 1); XCTFail("Expected \(code)") }
+            catch { XCTAssertEqual(error as? RallyClientError, expected) }
+        }
+        transport.subscriptionFailure = ClientError.ConvexError(data: #"{"version":1,"code":"AUTHENTICATION_REQUIRED"}"#)
+        var iterator = client.account().makeAsyncIterator()
+        do { _ = try await iterator.next(); XCTFail("Expected typed query denial") }
+        catch { XCTAssertEqual(error as? RallyClientError, .authenticationRequired) }
+    }
+
+    func testUnknownStructuredPayloadsRemainGenericWithoutRawText() async {
+        let transport = FixtureAPITransport()
+        let client = ConvexRallyClient(transport: transport)
+        for payload in [
+            #"{"version":2,"code":"AUTHENTICATION_REQUIRED"}"#,
+            #"{"version":1,"code":"FUTURE_ERROR"}"#,
+            #"{"version":1,"code":"AUTHENTICATION_REQUIRED","private-token":"secret"}"#,
+            #"{"code":"AUTHENTICATION_REQUIRED"}"#, #""AUTHENTICATION_REQUIRED""#, "not-json"
+        ] {
+            transport.failure = ClientError.ConvexError(data: payload)
+            do { _ = try await client.register(displayName: "Fixture"); XCTFail("Expected generic error") }
+            catch {
+                guard let safe = error as? RallyClientError, case .unavailable = safe else { XCTFail("Unknown payload gained semantics"); continue }
+                XCTAssertFalse(error.localizedDescription.contains("private-token"))
+                XCTAssertFalse(error.localizedDescription.contains("AUTHENTICATION_REQUIRED"))
+            }
+        }
+    }
+
+    func testAccountStatusAndRouteQueriesUseCurrentIdentityOnly() async throws {
+        let transport = FixtureAPITransport()
+        let client = ConvexRallyClient(transport: transport)
+        transport.subscriptionResult = #"{"userId":"current-user","displayName":"Alex","phoneLinked":true,"messagingState":"active"}"#
+        var account = client.account().makeAsyncIterator()
+        let accountValue = try await account.next()
+        XCTAssertTrue(try XCTUnwrap(accountValue).phoneLinked)
+        XCTAssertEqual(transport.calls.last?.name, "accounts:current")
+        XCTAssertEqual(transport.calls.last?.arguments, [:])
+
+        transport.subscriptionResult = #"{"status":"available","destination":"+15550009999","expiresAt":2000000000000}"#
+        var route = client.rallyRoute().makeAsyncIterator()
+        let routeValue = try await route.next()
+        XCTAssertEqual(routeValue, .available(destination: "+15550009999", expiresAt: 2_000_000_000_000))
+        XCTAssertEqual(transport.calls.last?.name, "appStatus:route")
+        XCTAssertEqual(transport.calls.last?.arguments, [:])
+
+        transport.subscriptionResult = #"[{"eventId":"event-fixture","progress":{"total":3,"confirmed":1,"needsCoverage":1,"completed":1,"canceled":0}}]"#
+        var progress = client.eventProgress().makeAsyncIterator()
+        let progressValue = try await progress.next()
+        XCTAssertEqual(progressValue?.first?.progress.confirmed, 1)
+        XCTAssertEqual(transport.calls.last?.name, "appStatus:overview")
+        XCTAssertEqual(transport.calls.last?.arguments, [:])
+
+        transport.subscriptionResult = #"{"eventId":"event-fixture","progress":{"total":1,"confirmed":1,"needsCoverage":0,"completed":0,"canceled":0},"messaging":{"membershipState":"enrolled","consentRecorded":false,"notificationsEnabled":false,"messagingState":"active","canReceiveMessages":false},"route":{"status":"unavailable"},"activity":[]}"#
+        var status = client.eventStatus(eventID: "event-fixture").makeAsyncIterator()
+        let statusValue = try await status.next()
+        XCTAssertFalse(try XCTUnwrap(statusValue).messaging.canReceiveMessages)
+        XCTAssertEqual(transport.calls.last?.name, "appStatus:event")
+        XCTAssertEqual(transport.calls.last?.arguments, ["eventId": #""event-fixture""#])
+    }
 }
 
 @MainActor
@@ -91,6 +179,8 @@ private final class FixtureAPITransport: RallyAPITransport {
     var calls: [Call] = []
     var result = "null"
     var failure: (any Error)?
+    var subscriptionResult: String?
+    var subscriptionFailure: ClientError?
 
     func mutation<Result: Decodable & Sendable>(_ name: String, arguments: sending [String: ConvexEncodable?]) async throws -> Result {
         calls.append(Call(name: name, arguments: try arguments.mapValues { try $0?.convexEncode() ?? "null" }))
@@ -99,6 +189,16 @@ private final class FixtureAPITransport: RallyAPITransport {
     }
 
     func subscribe<Value: Decodable & Sendable>(_ name: String, arguments: [String: ConvexEncodable?]) -> AnyPublisher<Value, ClientError> {
-        Fail(error: ClientError.ServerError(msg: "private-token unauthorized event content")).eraseToAnyPublisher()
+        do {
+            calls.append(Call(name: name, arguments: try arguments.mapValues { try $0?.convexEncode() ?? "null" }))
+            if let subscriptionFailure { return Fail(error: subscriptionFailure).eraseToAnyPublisher() }
+            guard let subscriptionResult else {
+                return Fail(error: ClientError.ServerError(msg: "private-token unauthorized event content")).eraseToAnyPublisher()
+            }
+            let value = try JSONDecoder().decode(Value.self, from: Data(subscriptionResult.utf8))
+            return Just(value).setFailureType(to: ClientError.self).eraseToAnyPublisher()
+        } catch {
+            return Fail(error: ClientError.InternalError(msg: "Fixture decoding failed")).eraseToAnyPublisher()
+        }
     }
 }

@@ -202,6 +202,6 @@ describe("Lane A+B full pipeline (simulation; no real provider/model)", () => {
     await h.receive(h.phones.jordan, "STATUS");
     const content = h.fake.sends.at(-1)!.content;
     expect(content).toContain("Integration Charity 5K"); expect(content).not.toContain("Private");
-    await expect(h.app.query(api.events.detail, { eventId: privateEvent })).rejects.toThrow("UNAUTHORIZED");
+    await expect(h.app.query(api.events.detail, { eventId: privateEvent })).rejects.toMatchObject({ data: { version: 1, code: "ACCESS_DENIED" } });
   });
 });

@@ -5,6 +5,9 @@ struct OnboardingAndLinkPhoneView: View {
     @EnvironmentObject private var session: AppSession
     @Environment(\.dismiss) private var dismiss
     @StateObject private var model: PhoneLinkModel
+    @State private var route: RallyRoute = .unavailable
+    @State private var routeError: String?
+    @State private var retry = 0
 
     init(client: any RallyClient) {
         self.client = client
@@ -23,7 +26,7 @@ struct OnboardingAndLinkPhoneView: View {
                     Text("Rally verifies a JOIN message from your phone before enabling event creation. Joining each event is a separate step.")
                         .foregroundStyle(.secondary)
                 }
-                if model.state == .linked {
+                if model.state == .linked || session.phoneVerifiedForSession {
                     Section {
                         Label(client.mode == .demo ? "Demo phone proof simulated" : "Phone verified", systemImage: "checkmark.circle")
                             .font(.headline)
@@ -53,7 +56,7 @@ struct OnboardingAndLinkPhoneView: View {
                                 .accessibilityIdentifier("phoneJoinCode")
                             Text("Expires \(challenge.expirationDate.formatted(date: .omitted, time: .shortened))")
                                 .font(.subheadline)
-                            Text("Send this from the phone above in the Rally conversation provisioned for you. Your assigned Rally contact is not available in this app yet.")
+                            Text("Send this from the phone above in the Rally conversation provisioned for you. A contact shortcut becomes available after phone verification when Rally has a verified destination.")
                                 .foregroundStyle(.secondary)
                             ShareLink("Share JOIN instruction", item: "JOIN \(challenge.code)")
                                 .disabled(model.state == .expired)
@@ -75,20 +78,44 @@ struct OnboardingAndLinkPhoneView: View {
                     if model.isBusy { Section { ProgressView("Checking account…") } }
                     if let message = model.message { Section { ErrorNotice(message: message) } }
                 }
-                if client.mode == .live {
-                    Section {
-                        Text("Existing phone links cannot be restored in this build. After signing in again, verify with a new code. Your event messaging consent is checked separately.")
-                            .font(.footnote).foregroundStyle(.secondary)
+                Section("Your Rally conversation") {
+                    RallyRouteView(route: route, mode: client.mode,
+                                   isStale: client.mode == .live && session.connection.isStale)
+                    if let routeError {
+                        ErrorNotice(message: routeError)
+                        Button("Retry contact status") { retry += 1 }
                     }
                 }
             }
             .navigationTitle("Connect iMessage")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .task(id: "\(retry):\(session.identityGeneration)") { await subscribeRoute() }
             .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in model.refreshExpiry() }
             .onChange(of: model.authenticationRequired) { _, required in
                 if required { session.authenticationExpired() }
             }
+        }
+    }
+
+    private func subscribeRoute() async {
+        route = .unavailable
+        routeError = nil
+        let generation = session.identityGeneration
+        let query = retry
+        do {
+            for try await received in client.rallyRoute() {
+                guard !Task.isCancelled, generation == session.identityGeneration, query == retry else { return }
+                route = received
+            }
+            guard !Task.isCancelled, generation == session.identityGeneration, query == retry else { return }
+            route = .unavailable
+            routeError = "Contact updates ended. Retry to load your current Rally contact."
+        } catch {
+            guard !Task.isCancelled, generation == session.identityGeneration, query == retry else { return }
+            route = .unavailable
+            routeError = error.localizedDescription
+            if error as? RallyClientError == .authenticationRequired { session.authenticationExpired() }
         }
     }
 

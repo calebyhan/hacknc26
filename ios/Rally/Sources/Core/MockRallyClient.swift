@@ -30,10 +30,16 @@ final class MockRallyClient: RallyClient {
     let session: DemoSession
     private let now: () -> Date
     private(set) var simulatedLinkedPhone: String?
+    private var simulatedRouteExpiresAt: Double?
     private var records: [String: EventDetail]
     private var nextID = 1
     private var eventListeners: [UUID: AsyncThrowingStream<[EventSummary], Error>.Continuation] = [:]
     private var detailListeners: [UUID: (eventID: String, continuation: AsyncThrowingStream<EventDetail, Error>.Continuation)] = [:]
+    private var accountListeners: [UUID: AsyncThrowingStream<AccountStatus, Error>.Continuation] = [:]
+    private var routeListeners: [UUID: AsyncThrowingStream<RallyRoute, Error>.Continuation] = [:]
+    private var statusListeners: [UUID: (eventID: String, continuation: AsyncThrowingStream<EventAppStatus, Error>.Continuation)] = [:]
+    private var progressListeners: [UUID: AsyncThrowingStream<[EventProgressSummary], Error>.Continuation] = [:]
+    private var activityRecords: [String: [ActivityEntry]] = [:]
     private var createdEvents: [String: Replay<String>] = [:]
     private var createdTasks: [String: Replay<String>] = [:]
     private var createdInvitations: [String: Replay<[CreatedInvitation]>] = [:]
@@ -73,6 +79,12 @@ final class MockRallyClient: RallyClient {
         // Existing sample memberships and consent are explicitly fixture state.
         // Newly created events and app phone linking never inherit this consent.
         if session != .stranger { messagingConsent = ["event_charity_5k", "event_hack_night"] }
+        activityRecords["event_charity_5k"] = [
+            ActivityEntry(id: "simulation-domain-fixture", kind: .domain, at: nowMilliseconds,
+                          title: "Simulated fixture prepared", deliveryState: nil),
+            ActivityEntry(id: "simulation-delivery-fixture", kind: .delivery, at: nowMilliseconds,
+                          title: "Simulated provider acceptance", deliveryState: .sent)
+        ]
     }
 
     func register(displayName: String) async throws -> String {
@@ -80,6 +92,53 @@ final class MockRallyClient: RallyClient {
         // DemoSession is an already registered simulated identity. Registration
         // replays its canonical ID without changing any phone or event permission.
         return session.userID
+    }
+
+    func account() -> AsyncThrowingStream<AccountStatus, Error> {
+        let token = UUID()
+        return AsyncThrowingStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
+            accountListeners[token] = continuation
+            continuation.yield(currentAccount)
+            continuation.onTermination = { @Sendable [weak self] _ in
+                Task { @MainActor [weak self] in self?.accountListeners.removeValue(forKey: token) }
+            }
+        }
+    }
+
+    func rallyRoute() -> AsyncThrowingStream<RallyRoute, Error> {
+        let token = UUID()
+        return AsyncThrowingStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
+            routeListeners[token] = continuation
+            continuation.yield(currentRoute)
+            continuation.onTermination = { @Sendable [weak self] _ in
+                Task { @MainActor [weak self] in self?.routeListeners.removeValue(forKey: token) }
+            }
+        }
+    }
+
+    func eventStatus(eventID: String) -> AsyncThrowingStream<EventAppStatus, Error> {
+        let token = UUID()
+        return AsyncThrowingStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
+            do {
+                let status = try currentEventStatus(eventID)
+                statusListeners[token] = (eventID, continuation)
+                continuation.yield(status)
+                continuation.onTermination = { @Sendable [weak self] _ in
+                    Task { @MainActor [weak self] in self?.statusListeners.removeValue(forKey: token) }
+                }
+            } catch { continuation.finish(throwing: error) }
+        }
+    }
+
+    func eventProgress() -> AsyncThrowingStream<[EventProgressSummary], Error> {
+        let token = UUID()
+        return AsyncThrowingStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
+            progressListeners[token] = continuation
+            continuation.yield(currentProgress)
+            continuation.onTermination = { @Sendable [weak self] _ in
+                Task { @MainActor [weak self] in self?.progressListeners.removeValue(forKey: token) }
+            }
+        }
     }
 
     func beginPhoneLink(phoneE164: String, idempotencyKey: String) async throws -> PhoneLinkChallenge {
@@ -100,9 +159,15 @@ final class MockRallyClient: RallyClient {
         if let existing = phoneUserIDs[phone], existing != session.userID { throw PhoneLinkFailure.identityConflict }
         if let linked = simulatedLinkedPhone, linked != phone { throw PhoneLinkFailure.phoneChangeUnsupported }
         simulatedLinkedPhone = phone
+        simulatedRouteExpiresAt = nowMilliseconds + 3_600_000
         phoneUserIDs[phone] = session.userID
         proof.completed = true
         challenges[invitationID] = proof
+        for continuation in accountListeners.values { continuation.yield(currentAccount) }
+        for continuation in routeListeners.values { continuation.yield(currentRoute) }
+        for listener in statusListeners.values {
+            if let status = try? currentEventStatus(listener.eventID) { listener.continuation.yield(status) }
+        }
         return session.userID
     }
 
@@ -116,6 +181,7 @@ final class MockRallyClient: RallyClient {
             _ = try authorizedDetail(eventID, organizer: true)
             messagingConsent.insert(eventID)
             proof.completed = true
+            emit(eventID: eventID)
         }
         proof.joined = true
         challenges[invitationID] = proof
@@ -368,12 +434,58 @@ final class MockRallyClient: RallyClient {
     }
 
     private func emit(eventID: String) {
+        activityRecords[eventID, default: []].insert(ActivityEntry(
+            id: makeID("activity"), kind: .domain, at: nowMilliseconds,
+            title: "Simulated event state updated", deliveryState: nil
+        ), at: 0)
         let summaries = visibleEvents()
         for continuation in eventListeners.values { continuation.yield(summaries) }
+        for continuation in progressListeners.values { continuation.yield(currentProgress) }
+        for listener in statusListeners.values where listener.eventID == eventID {
+            do { listener.continuation.yield(try currentEventStatus(eventID)) }
+            catch { listener.continuation.finish(throwing: error) }
+        }
         for listener in detailListeners.values where listener.eventID == eventID {
             do { listener.continuation.yield(try authorizedDetail(eventID)) }
             catch { listener.continuation.finish(throwing: error) }
         }
+    }
+
+    private var currentAccount: AccountStatus {
+        AccountStatus(userId: session.userID, displayName: session.participantName,
+                      phoneLinked: simulatedLinkedPhone != nil, messagingState: .active)
+    }
+
+    private var currentRoute: RallyRoute {
+        guard simulatedLinkedPhone != nil, let expiresAt = simulatedRouteExpiresAt else { return .unavailable }
+        return .available(destination: "+15550009999", expiresAt: expiresAt)
+    }
+
+    private var currentProgress: [EventProgressSummary] {
+        visibleEvents().compactMap { event in
+            guard let detail = try? authorizedDetail(event.id) else { return nil }
+            return EventProgressSummary(eventId: event.id, progress: progress(for: detail))
+        }
+    }
+
+    private func progress(for detail: EventDetail) -> TaskProgress {
+        TaskProgress(total: detail.tasks.count,
+                     confirmed: detail.tasks.filter { $0.status == .confirmed }.count,
+                     needsCoverage: detail.tasks.filter { $0.status == .unassigned || $0.status == .needsCoverage }.count,
+                     completed: detail.tasks.filter { $0.status == .completed }.count,
+                     canceled: detail.tasks.filter { $0.status == .canceled }.count)
+    }
+
+    private func currentEventStatus(_ eventID: String) throws -> EventAppStatus {
+        let detail = try authorizedDetail(eventID)
+        let consent = messagingConsent.contains(eventID)
+        return EventAppStatus(
+            eventId: eventID, progress: progress(for: detail),
+            messaging: EventMessagingStatus(membershipState: .enrolled, consentRecorded: consent,
+                                             notificationsEnabled: consent, messagingState: .active,
+                                             canReceiveMessages: consent),
+            route: currentRoute, activity: Array(activityRecords[eventID, default: []].prefix(20))
+        )
     }
 
     private func encoded<T: Encodable>(_ value: T) throws -> Data {

@@ -7,6 +7,8 @@ struct EventListView: View {
     @State private var loading = true
     @State private var error: String?
     @State private var retry = 0
+    @State private var progress: [String: TaskProgress] = [:]
+    @State private var progressError: String?
     @State private var showCreate = false
     @State private var showPhone = false
 
@@ -55,8 +57,18 @@ struct EventListView: View {
                                 if let location = event.location, !location.isEmpty {
                                     Label(location, systemImage: "mappin.and.ellipse").font(.caption).foregroundStyle(.secondary)
                                 }
+                                if let summary = progress[event.id] {
+                                    Text(summary.summary).font(.caption).foregroundStyle(.secondary)
+                                        .accessibilityIdentifier("progress-\(event.id)")
+                                }
                             }.padding(.vertical, 8)
                         }.accessibilityIdentifier("event-\(event.id)")
+                    }
+                }
+                if let progressError {
+                    Section {
+                        ErrorNotice(message: progressError)
+                        Button("Retry progress") { retry += 1 }
                     }
                 }
                 Section {
@@ -66,7 +78,7 @@ struct EventListView: View {
                         Text("Verify your phone before creating an event. Existing events remain available to your account.")
                             .font(.footnote).foregroundStyle(.secondary)
                     } else if client.mode == .live {
-                        Label("Phone verified for this session", systemImage: "checkmark.circle")
+                        Label("Phone verified", systemImage: "checkmark.circle")
                             .font(.footnote)
                     }
                     Button { showPhone = true } label: { Label("Connect iMessage", systemImage: "message") }
@@ -89,6 +101,7 @@ struct EventListView: View {
             }
             .sheet(isPresented: $showPhone) { OnboardingAndLinkPhoneView(client: client) }
             .task(id: retry) { await subscribe() }
+            .task(id: retry) { await subscribeProgress() }
         }
     }
 
@@ -101,12 +114,37 @@ struct EventListView: View {
                 events = received
                 loading = false
             }
+            guard !Task.isCancelled else { return }
+            events = []
+            progress = [:]
+            loading = false
+            error = "Event updates ended. Try again to reload your events."
         } catch {
             guard !Task.isCancelled else { return }
             events = []
+            progress = [:]
             if error as? RallyClientError == .authenticationRequired { session.authenticationExpired() }
             self.error = error.localizedDescription
             loading = false
+        }
+    }
+
+    private func subscribeProgress() async {
+        progress = [:]
+        progressError = nil
+        do {
+            for try await summaries in client.eventProgress() {
+                guard !Task.isCancelled else { return }
+                progress = Dictionary(summaries.map { ($0.eventId, $0.progress) }, uniquingKeysWith: { _, latest in latest })
+            }
+            guard !Task.isCancelled else { return }
+            progress = [:]
+            progressError = "Progress updates ended. Retry to load current counts."
+        } catch {
+            guard !Task.isCancelled else { return }
+            progress = [:]
+            if error as? RallyClientError == .authenticationRequired { session.authenticationExpired() }
+            progressError = error.localizedDescription
         }
     }
 }

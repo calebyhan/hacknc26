@@ -5,11 +5,11 @@ import schema from "./schema";
 const { createTest } = defineTestApp({ schema }).defineModules({});
 
 describe("Convex storage contract (in-memory simulation)", () => {
-  it("registers all sixteen documented tables", () => {
+  it("registers all documented tables", () => {
     expect(Object.keys(schema.tables).sort()).toEqual([
       "auditEvents", "availability", "commitments", "contactSelections",
       "conversationFocus", "events", "inboundMessages", "invitations",
-      "memberships", "outboundMessages", "proposals", "reasoningJobs",
+      "memberships", "messagingRoutes", "outboundMessages", "proposals", "reasoningJobs",
       "tasks", "users", "weatherObservations", "workerHeartbeats",
     ]);
   });

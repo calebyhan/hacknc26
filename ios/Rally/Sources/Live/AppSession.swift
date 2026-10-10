@@ -66,6 +66,7 @@ final class AppSession: ObservableObject {
     @Published private(set) var canCreateEvents = false
     @Published private(set) var phoneVerifiedForSession = false
     @Published private(set) var accountUserID: String?
+    @Published private(set) var accountStatus: AccountStatus?
     @Published private(set) var identityGeneration = UUID()
     @Published private(set) var error: String?
     @Published private(set) var connection: LiveConnectionState = .inactive
@@ -74,6 +75,8 @@ final class AppSession: ObservableObject {
     private var authentication: (any SessionAuthenticating)?
     private var authSubscription: AnyCancellable?
     private var connectionSubscription: AnyCancellable?
+    private var accountTask: Task<Void, Never>?
+    private var accountReadiness: AccountReadiness?
     private var sessionGeneration = UUID()
     private var registrationName = ""
     private var signOutInFlight = false
@@ -104,6 +107,8 @@ final class AppSession: ObservableObject {
         makeAuthentication = { authentication }
     }
 
+    deinit { accountTask?.cancel() }
+
     func enterDemo() {
         guard !isSigningIn, authentication == nil else { return }
         error = nil
@@ -111,6 +116,8 @@ final class AppSession: ObservableObject {
         identityGeneration = UUID()
         let demo = MockRallyClient()
         accountUserID = demo.session.userID
+        accountStatus = AccountStatus(userId: demo.session.userID, displayName: demo.session.participantName,
+                                      phoneLinked: false, messagingState: .active)
         client = demo
         phoneVerifiedForSession = false
         canCreateEvents = true // Explicit fictional fixture, never live proof.
@@ -185,13 +192,13 @@ final class AppSession: ObservableObject {
         canRetryRegistration = false
         error = nil
         do {
-            let userID = try await boundary.rallyClient.register(displayName: registrationName)
+            _ = try await boundary.rallyClient.register(displayName: registrationName)
             guard sessionGeneration == generation else { return }
-            accountUserID = userID
-            identityGeneration = UUID()
-            // No account/link read API exists. Never restore proof from a flag.
-            canCreateEvents = false
-            phoneVerifiedForSession = false
+            try await observeAccount(using: boundary.rallyClient, generation: generation)
+            guard sessionGeneration == generation else { return }
+            guard accountStatus != nil else {
+                throw RallyClientError.unavailable("Account status is unavailable.")
+            }
             client = boundary.rallyClient
         } catch {
             guard sessionGeneration == generation else { return }
@@ -201,11 +208,77 @@ final class AppSession: ObservableObject {
             }
             client = nil
             accountUserID = nil
+            accountStatus = nil
             canCreateEvents = false
+            phoneVerifiedForSession = false
             canRetryRegistration = true
             self.error = "Your Rally account could not be prepared. Retry setup or sign out and try again."
         }
         isRegistering = false
+    }
+
+    private func observeAccount(using source: any RallyClient, generation: UUID) async throws {
+        stopAccountObservation()
+        let readiness = AccountReadiness()
+        accountReadiness = readiness
+        try await withCheckedThrowingContinuation { continuation in
+            readiness.continuation = continuation
+            accountTask = Task { @MainActor [weak self] in
+                do {
+                    for try await status in source.account() {
+                        guard !Task.isCancelled, let self, self.sessionGeneration == generation else {
+                            readiness.resolve(.failure(CancellationError()))
+                            return
+                        }
+                        self.applyAccountStatus(status)
+                        readiness.resolve(.success(()))
+                    }
+                    try Task.checkCancellation()
+                    throw RallyClientError.unavailable("Account status updates stopped. Retry account setup.")
+                } catch {
+                    let alreadyReady = readiness.succeeded
+                    readiness.resolve(.failure(error))
+                    guard !Task.isCancelled, let self, self.sessionGeneration == generation else { return }
+                    self.accountTask = nil
+                    if alreadyReady { self.accountObservationFailed(error) }
+                }
+            }
+        }
+    }
+
+    private func applyAccountStatus(_ status: AccountStatus) {
+        if accountUserID != status.userId || (phoneVerifiedForSession && !status.phoneLinked) {
+            identityGeneration = UUID()
+        }
+        accountUserID = status.userId
+        accountStatus = status
+        phoneVerifiedForSession = status.phoneLinked
+        canCreateEvents = status.phoneLinked || client?.mode == .demo
+    }
+
+    private func accountObservationFailed(_ failure: Error) {
+        if failure as? RallyClientError == .authenticationRequired || failure as? RallyClientError == .accessDenied {
+            authenticationExpired()
+            return
+        }
+        // A lost authorized read cannot leave local proof or protected views
+        // usable. Keep authentication only to permit an explicit setup retry.
+        client = nil
+        accountUserID = nil
+        accountStatus = nil
+        phoneVerifiedForSession = false
+        canCreateEvents = false
+        identityGeneration = UUID()
+        isRegistering = false
+        canRetryRegistration = true
+        error = "Your account status could not be verified. Retry account setup to continue."
+    }
+
+    private func stopAccountObservation() {
+        accountReadiness?.resolve(.failure(CancellationError()))
+        accountReadiness = nil
+        accountTask?.cancel()
+        accountTask = nil
     }
 
     /// Accept only the completion result belonging to the current view session.
@@ -214,6 +287,10 @@ final class AppSession: ObservableObject {
         if accountUserID != canonicalUserID {
             accountUserID = canonicalUserID
             identityGeneration = UUID() // Recreate all identity-scoped views.
+        }
+        if let status = accountStatus {
+            accountStatus = AccountStatus(userId: canonicalUserID, displayName: status.displayName,
+                                          phoneLinked: true, messagingState: status.messagingState)
         }
         phoneVerifiedForSession = true
         canCreateEvents = true
@@ -252,6 +329,8 @@ final class AppSession: ObservableObject {
     private func clearProtectedState() {
         client = nil
         accountUserID = nil
+        accountStatus = nil
+        stopAccountObservation()
         canCreateEvents = false
         phoneVerifiedForSession = false
         identityGeneration = UUID()
@@ -261,5 +340,20 @@ final class AppSession: ObservableObject {
         authSubscription = nil
         connectionSubscription = nil
         connection = .inactive
+    }
+}
+
+@MainActor
+private final class AccountReadiness {
+    var continuation: CheckedContinuation<Void, Error>?
+    private(set) var succeeded = false
+    private var resolved = false
+
+    func resolve(_ result: Result<Void, Error>) {
+        guard !resolved else { return }
+        resolved = true
+        if case .success = result { succeeded = true }
+        continuation?.resume(with: result)
+        continuation = nil
     }
 }

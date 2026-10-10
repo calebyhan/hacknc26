@@ -123,3 +123,9 @@ Membership writes: A owns `invited → enrolled → left` and `users.messagingSt
 | `prompts/m2-ai-and-app.md` | B + C, D | ~12h |
 | `prompts/m3-freeze.md` | Everyone | ~18h |
 | `prompts/t8-demo-hardening.md` | A leads | 21h |
+
+## Additive A/B/D app contracts — 2026-10-10
+
+The user authorized completing Lane D's remaining backend/app code while deferring live tests. `accounts.current`, `appStatus.event/overview/route`, internal route provision/revoke mutations, the `messagingRoutes` table/indexes, and strict app-facing error envelopes are implemented in the coordinated continuation. Existing domain mutation signatures and canonical enums are preserved. Account/error, backend status/routing and Swift adapter/session implementation were delegated separately; the combined local gate is recorded in the [app README](../ios/Rally/README.md). See [the contract handoff](22-ios-app-contracts.md) for exact access, expiry and provisioning rules.
+
+This supersedes D's missing-read-contract blocker. Live deployment/auth/Photon/device verification remains deferred; Lane C execution and P1/P2 scope are unchanged.

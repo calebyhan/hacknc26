@@ -6,6 +6,8 @@ struct EventDetailView: View {
     let eventID: String
     @EnvironmentObject private var session: AppSession
     @State private var detail: EventDetail?
+    @State private var appStatus: EventAppStatus?
+    @State private var appStatusError: String?
     @State private var error: String?
     @State private var actionError: String?
     @State private var actionNotice: String?
@@ -52,10 +54,12 @@ struct EventDetailView: View {
                 }
                 taskSection(detail)
                 peopleSection(detail)
+                messagingSection
                 if detail.event.isOrganizer && (detail.event.status == .draft || detail.event.status == .scheduled) {
-                    organizerSection
+                    if appStatus?.messaging.consentRecorded == false { organizerSection }
                 }
                 requestsSection(detail)
+                activitySection
                 Section {
                     Button { showPhone = true } label: { Label("Connect iMessage", systemImage: "message") }
                     if client.mode == .demo, let demo = client as? MockRallyClient,
@@ -99,6 +103,7 @@ struct EventDetailView: View {
             }
         }
         .task(id: "\(retry):\(session.identityGeneration)") { await subscribe() }
+        .task(id: "\(retry):\(session.identityGeneration)") { await subscribeAppStatus() }
         .task(id: pendingExpirations) { await updateExpiryClock() }
         .sheet(isPresented: $showContacts) { ContactReviewView(client: client, eventID: eventID) }
         .sheet(isPresented: $showTask) {
@@ -113,6 +118,8 @@ struct EventDetailView: View {
         }
         .onChange(of: session.identityGeneration) { _, _ in
             detail = nil
+            appStatus = nil
+            appStatusError = nil
             organizerChallenge = nil
             organizerRequestKey = UUID().uuidString
             organizerRequestAttempted = false
@@ -136,6 +143,9 @@ struct EventDetailView: View {
                 Text(detail.event.timezone).font(.caption).foregroundStyle(.secondary)
                 if let location = detail.event.location { Label(location, systemImage: "mappin.and.ellipse") }
                 if let status = detail.event.displayStatus { StatusBadge(status: status) }
+                if let progress = appStatus?.progress {
+                    Text(progress.summary).font(.subheadline).foregroundStyle(.secondary)
+                }
             }.padding(.vertical, 8)
         }
     }
@@ -177,7 +187,7 @@ struct EventDetailView: View {
 
     private var organizerSection: some View {
         Section("Your event messages") {
-            Text("Join this event from your linked phone to opt in to its iMessage updates. Organizer access and phone verification do not enable these messages.")
+            Text("Text this event's JOIN code from your linked phone to enable its messages. Phone verification and organizer access are separate.")
                 .font(.subheadline).foregroundStyle(.secondary)
             if let challenge = organizerChallenge {
                 TimelineView(.periodic(from: .now, by: 30)) { context in
@@ -194,7 +204,7 @@ struct EventDetailView: View {
                         }
                     }
                 }
-                Text(client.mode == .demo ? "This is a simulated code and cannot be redeemed." : "Text the code in your existing provisioned Rally conversation. The assigned Rally contact is not available here.")
+                Text(client.mode == .demo ? "This is a simulated code and cannot be redeemed." : "Text the code in your provisioned Rally conversation. Use the contact shortcut above when available.")
                     .font(.caption).foregroundStyle(.secondary)
             } else {
                 Button(organizerRequestAttempted ? "Retry code request" : "Get my event JOIN code") {
@@ -206,7 +216,7 @@ struct EventDetailView: View {
                     Text("Verify your linked phone through Connect iMessage first.").font(.caption).foregroundStyle(.secondary)
                 }
             }
-            Text("Event messaging consent is not available in this view. A copied code is not confirmation that you joined.")
+            Text("The messaging status above updates after a verified JOIN. Copying a code does not join the event.")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }
@@ -234,8 +244,67 @@ struct EventDetailView: View {
                     }
                 }.padding(.vertical, 4)
             }
-            Text("Activity history, message delivery and worker status are not available in this view.")
-                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var messagingSection: some View {
+        Section("Your messaging status") {
+            if let appStatus {
+                Text(appStatus.messaging.statusTitle).font(.headline)
+                    .accessibilityIdentifier("eventMessagingStatus")
+                if appStatus.messaging.messagingState == .stopped || appStatus.messaging.messagingState == .paused {
+                    Text("Text RESUME in your Rally conversation to resume messages. Event consent is still required.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                RallyRouteView(route: appStatus.route, mode: client.mode,
+                               isStale: client.mode == .live && session.connection.isStale)
+            } else if let appStatusError {
+                ErrorNotice(message: appStatusError)
+                Button("Retry messaging status") { refresh() }
+            } else {
+                ProgressView("Loading messaging status…")
+            }
+        }
+    }
+
+    private var activitySection: some View {
+        Section("Recent activity") {
+            if let appStatus {
+                EventActivityView(entries: appStatus.activity)
+            } else {
+                Text(appStatusError == nil ? "Loading activity…" : "Activity unavailable until status reloads.")
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func subscribeAppStatus() async {
+        appStatus = nil
+        appStatusError = nil
+        let generation = session.identityGeneration
+        let query = retry
+        do {
+            for try await status in client.eventStatus(eventID: eventID) {
+                guard !Task.isCancelled, session.identityGeneration == generation, query == retry else { return }
+                guard status.eventId == eventID else {
+                    throw RallyClientError.unavailable("The status response did not match this event.")
+                }
+                appStatus = status
+                if status.messaging.consentRecorded { organizerChallenge = nil }
+            }
+            guard !Task.isCancelled, session.identityGeneration == generation, query == retry else { return }
+            appStatus = nil
+            appStatusError = "Status updates ended. Retry to load current activity and consent."
+        } catch {
+            guard !Task.isCancelled, session.identityGeneration == generation, query == retry else { return }
+            appStatus = nil
+            appStatusError = error.localizedDescription
+            if error as? RallyClientError == .authenticationRequired { session.authenticationExpired() }
+            if error as? RallyClientError == .accessDenied {
+                detail = nil
+                organizerChallenge = nil
+                self.error = error.localizedDescription
+            }
         }
     }
 
@@ -276,16 +345,19 @@ struct EventDetailView: View {
             }
             guard !Task.isCancelled, session.identityGeneration == generation, query == retry else { return }
             detail = nil
+            appStatus = nil
             refreshing = false
             error = "Event updates ended. Refresh to load the current event."
         } catch {
             guard !Task.isCancelled, session.identityGeneration == generation, query == retry else { return }
             // A failed query may mean revoked access. Clear all protected response data.
             detail = nil
+            appStatus = nil
             organizerChallenge = nil
             actionNotice = nil
             refreshing = false
             self.error = error.localizedDescription
+            if error as? RallyClientError == .authenticationRequired { session.authenticationExpired() }
         }
     }
 
@@ -324,6 +396,7 @@ struct EventDetailView: View {
             guard !Task.isCancelled, session.identityGeneration == generation else { return }
             actionError = error.localizedDescription
             actionNotice = "Review the refreshed event before trying this action again."
+            if error as? RallyClientError == .authenticationRequired { session.authenticationExpired() }
         }
         guard session.identityGeneration == generation else { return }
         busyAction = nil
@@ -332,7 +405,8 @@ struct EventDetailView: View {
     }
 
     private func requestOrganizerCode(renew: Bool) async {
-        guard !actionDisabled, session.phoneVerifiedForSession, detail?.event.isOrganizer == true else { return }
+        guard !actionDisabled, session.phoneVerifiedForSession, detail?.event.isOrganizer == true,
+              appStatus?.messaging.consentRecorded == false else { return }
         let generation = session.identityGeneration
         if renew {
             organizerRequestKey = UUID().uuidString
@@ -349,6 +423,8 @@ struct EventDetailView: View {
         } catch {
             guard !Task.isCancelled, session.identityGeneration == generation else { return }
             actionError = error.localizedDescription
+            if error as? RallyClientError == .authenticationRequired { session.authenticationExpired() }
+            if error as? RallyClientError == .accessDenied { refresh() }
         }
     }
 }

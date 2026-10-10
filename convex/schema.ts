@@ -22,6 +22,19 @@ export default defineSchema({
     settings,
   }).index("by_auth_subject", ["authSubject"]).index("by_phone", ["verifiedPhoneE164"]),
 
+  // Server-only provider allocation evidence. A revocation-only row is a
+  // tombstone: do not fall back to an older observed or provisioned contact.
+  messagingRoutes: defineTable({
+    participantPhoneE164: v.string(),
+    provisioning: v.optional(v.object({
+      destination: v.string(),
+      verifiedAt: v.number(),
+      expiresAt: v.number(),
+      providerReference: v.string(),
+    })),
+    revokedAt: v.optional(v.number()),
+  }).index("by_participant_phone", ["participantPhoneE164"]),
+
   contactSelections: defineTable({
     ownerUserId: v.id("users"),
     eventId: v.optional(v.id("events")),
@@ -137,7 +150,8 @@ export default defineSchema({
     eventId: v.optional(v.id("events")),
     processingState: inboundProcessingState,
   }).index("by_provider_message_id", ["provider", "providerMessageId"])
-    .index("by_sender", ["senderPhone"]),
+    .index("by_sender", ["senderPhone"])
+    .index("by_sender_received_at", ["senderPhone", "receivedAt"]),
 
   outboundMessages: defineTable({
     idempotencyKey: v.string(),
@@ -150,7 +164,8 @@ export default defineSchema({
     state: outboundState,
     attemptCount: v.number(),
     providerMessageId: v.optional(v.string()),
-  }).index("by_key", ["idempotencyKey"]).index("by_state", ["state"]),
+  }).index("by_key", ["idempotencyKey"]).index("by_state", ["state"])
+    .index("by_event_recipient", ["eventId", "recipientUserId"]),
 
   conversationFocus: defineTable({
     userId: v.id("users"),
@@ -195,7 +210,8 @@ export default defineSchema({
     newStateRef: v.optional(v.string()),
     at: v.number(),
     sourceId: v.string(),
-  }).index("by_event", ["eventId"]).index("by_time", ["at"]).index("by_source", ["sourceId"]),
+  }).index("by_event", ["eventId"]).index("by_time", ["at"]).index("by_source", ["sourceId"])
+    .index("by_event_at", ["eventId", "at"]),
 
   weatherObservations: defineTable({
     eventId: v.id("events"),
