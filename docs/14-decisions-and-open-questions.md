@@ -22,6 +22,7 @@
 | ADR-014 | DECIDED | Persisted state enums live only in `03-data-model.md#canonical-state-enums`; display labels are derived (`06-workflows.md#status-vocabulary`). |
 | ADR-015 | DECIDED | Two-level optimistic versioning: `events.version` for event-level fields, `tasks.version` per task; proposals and worker output check both (`03-data-model.md` invariants 5–6). Prevents one task's change from invalidating offers on other tasks. |
 | ADR-016 | DECIDED | Prompt 0 freezes concrete stub contracts and test tooling, including typed JSON worker envelopes and persisted task-version snapshots. Product behavior and provider capabilities remain unverified. |
+| ADR-017 | DECIDED / VERIFY | Lane D uses the official Convex Swift Auth0 adapter with explicit demo mode. SDK interfaces are verified; tenant configuration, backend authorization and physical-device sign-in remain unverified. |
 
 ### ADR-011 — Reassignment, cancellation and organizer approval
 - Date: 2026-10-10
@@ -73,12 +74,26 @@
 - Impact on tests/security: contract validation, strict unknown-field rejection, explicit API visibility, fixture/schema compatibility, throwing-stub behavior, and worker config handling are tested. They do not satisfy A1–A10 or replace the live Photon smoke test.
 - Evidence / link: package lock and `18-bootstrap-contract.md`. Human Convex setup completed; strict root/workspace typechecks, 64 tests, and the cloud development schema/stub deployment passed. This proves the Prompt 0 contract gate, not the live Photon or P0 product gates.
 
+### ADR-017 — iOS authentication adapter and honest integration boundary
+- Date: 2026-10-10
+- State: DECIDED (routine Lane D implementation); VERIFY (live identity and device setup)
+- Context: Lane D can build its setup/status UI against frozen query contracts, but all public app functions and authorization helpers still throw. No iOS auth tenant or public phone-link challenge contract is configured in this branch.
+- Decision:
+  - Pin `convex-swift` 0.8.1 (`ConvexMobile`), `convex-swift-auth0` 0.4.0 (`ConvexAuth0`), and the adapter's required `Auth0.swift` 2.17.0 (`Auth0`). Use the official Auth0 provider for Universal Login, ID-token authentication and credential refresh; never submit a client-supplied user ID or server credential.
+  - Keep blank public app configuration in source control. Load deployment URL/domain/client ID from a git-ignored local xcconfig; generate the SDK's `Auth0.plist` at build time. Missing/placeholder configuration disables live sign-in before SDK initialization.
+  - Keep a labeled, explicitly selected local demo client. Live subscription failures surface an error, clear protected query data, and never switch to demo. Observe Convex WebSocket state only as connectivity, never as proof of message delivery or model health.
+  - Until Lane A supplies a real challenge/status/provisioned-number contract, the app cannot display an actual phone-link code or an invented shared Rally number. Lane B retains ownership of auth enforcement and read models.
+  - Use iOS 17 as the minimum deployment target and Swift 6 language mode. The identified device is an iPhone 16 Pro on iOS 27.0.1, with temporary direct installation from Xcode requested. Actual pairing/signing with installed Xcode 26.6 remains to be verified; no TestFlight setup is required for this slice.
+- Alternatives: Clerk is also documented by Convex; switching remains possible behind `RallyClient`/`AppSession` if the team already has a configured tenant. Custom passwordless auth is deferred because it adds identity and refresh-token implementation work.
+- Impact on tests/security: test public configuration validation, plain numeric wire encoding (Swift SDK integer encoding is a different Convex type), omitted optionals, selected-contact payloads, and explicitly simulated state changes. Mock authorization tests do not prove server authorization. Auth0 sign-in does not prove control of a phone number or enrollment.
+- Evidence / link: official [Swift overview](https://docs.convex.dev/client/swift/overview), [Convex 0.8.1 source](https://github.com/get-convex/convex-swift/tree/0.8.1), [Auth0 adapter 0.4.0 manifest/source](https://github.com/get-convex/convex-swift-auth0/tree/0.4.0), [app verification record](../ios/Rally/README.md), and [Lane D continuation](../prompts/lane-d-ios-remaining.md). Package signatures and versions were read from these sources. The user reported successful simulator sign-in; backend token acceptance, physical-device operation, live delivery and ST-15 remain unverified.
+
 ## Blocking questions (resolve in first 2 hours)
 
 1. **Photon account:** The briefs list two promo codes (`HACKNC` in the track blurb, `HACKWITHPHOTON` in the Notion guidelines); record which one activated Pro and when the free month ends. Does hackathon promo provide just shared Pro DMs or special dedicated/group permissions (ADR-012)? Can newly selected contacts be invited compliantly, and how does participant provisioned number flow work? Record actual test.
 2. **Convex component:** Which installed `@spectrum-ts/convex` version, and how do replies, grouping/collapse, outbound IDs, and explicit send capabilities behave? Pin versions.
 3. **Claude runtime:** Which Claude account tier/model is accessible? Can local Agent SDK/`claude -p` be used for the intended prototype under current Anthropic terms, and what are real latency/rate limits? Test from Mac with a safe one-turn JSON task.
-4. **App authentication:** Which supported iOS/Convex auth provider is fastest for real organizer identity? Do not leave public mutations exposed.
+4. **App authentication:** Auth0 adapter selected for Lane D (ADR-017). Which tenant/native application and authorized test identities will the team configure, and how will Lane B provision their `users` rows? Public functions must enforce identity plus membership/role before live use.
 5. **Phone linking:** Exact sender metadata in Photon webhook, canonicalization rules, and proof-of-control enrollment behavior.
 6. **Device and test participants:** Exact Mac chip/RAM, team size, number of opted-in test phones and distribution pathway for iOS demo.
 7. **Event location:** Are actual coordinates known for weather, or should organizers provide validated location? Avoid fabricating geocodes.

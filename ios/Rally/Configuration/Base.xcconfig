@@ -1,0 +1,6 @@
+// Public application identifiers only. Never put server credentials in this app.
+RALLY_CONVEX_URL =
+AUTH0_DOMAIN =
+AUTH0_CLIENT_ID =
+
+#include? "Local.xcconfig"

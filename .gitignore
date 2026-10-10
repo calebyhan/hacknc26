@@ -40,7 +40,19 @@ worker/.sessions/
 dist/
 .convex/
 
-# Xcode per-user data
+# Xcode per-user data and generated build output
 xcuserdata/
 *.xcuserstate
 DerivedData/
+**/*.xcodeproj/-Xcc/
+*.xcresult/
+*.xctestrun
+*.dSYM/
+*.ipa
+
+# Swift Package Manager build output (keep Package.resolved)
+.build/
+
+# Python helper script caches
+__pycache__/
+*.py[cod]
