@@ -20,6 +20,7 @@
 | `15-sources.md` | Provider documentation links and source provenance | Updating SDKs |
 | `16-agent-task-board.md` | Assignable coding tickets and dependencies | Starting implementation |
 | `17-workstreams.md` | 4-lane parallel plan, frozen contract, file ownership, checkpoints | Team kickoff; before any contract change |
+| `18-bootstrap-contract.md` | Concrete Prompt 0 contracts, toolchain, verification and deployment handoff | Starting a lane after bootstrap |
 | `../prompts/` | Kickoff prompts per lane and checkpoint | Starting a lane or checkpoint session |
 
 ## How to use

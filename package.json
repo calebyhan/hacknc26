@@ -1,0 +1,28 @@
+{
+  "name": "rally",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/shared", "worker"],
+  "engines": { "node": "^24.0.0 || >=26.0.0", "npm": ">=11" },
+  "scripts": {
+    "check": "npm run typecheck && vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json && npm run typecheck --workspaces",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "contracts:list": "node scripts/list-contracts.mjs",
+    "convex:codegen": "convex codegen --typecheck disable",
+    "worker": "npm run start --workspace @rally/worker"
+  },
+  "dependencies": {
+    "convex": "1.46.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@edge-runtime/vm": "5.0.0",
+    "@types/node": "26.6.5",
+    "convex-test": "0.0.61",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3"
+  }
+}

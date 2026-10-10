@@ -21,6 +21,7 @@
 | ADR-013 | DECIDED | P0 does not depend on the iOS app; events are created via iMessage draft or a labeled bootstrap script. See below. |
 | ADR-014 | DECIDED | Persisted state enums live only in `03-data-model.md#canonical-state-enums`; display labels are derived (`06-workflows.md#status-vocabulary`). |
 | ADR-015 | DECIDED | Two-level optimistic versioning: `events.version` for event-level fields, `tasks.version` per task; proposals and worker output check both (`03-data-model.md` invariants 5–6). Prevents one task's change from invalidating offers on other tasks. |
+| ADR-016 | DECIDED | Prompt 0 freezes concrete stub contracts and test tooling, including typed JSON worker envelopes and persisted task-version snapshots. Product behavior and provider capabilities remain unverified. |
 
 ### ADR-011 — Reassignment, cancellation and organizer approval
 - Date: 2026-10-10
@@ -53,6 +54,24 @@
 - Alternatives: promote the iOS create/select screen to P0 (costs ~4h before the reassignment loop exists).
 - Impact on tests/security: bootstrap script must use the same authorized mutations (no admin bypass) and be disclosed as setup, not shown as a live agent action.
 - Evidence / link: `01-scope-and-acceptance.md` R2/R3.
+
+### ADR-016 — Bootstrap contract and verification boundary
+- Date: 2026-10-10
+- State: DECIDED (routine implementation choices within the authorized Prompt 0 task)
+- Context: `17` fixed function names but omitted argument/return shapes, left the command router kind open, and described worker authorization without a function kind. `03` omitted inbound processing states and nested field shapes. No package manifest, source code, tests or deployment configuration existed at kickoff.
+- Decision:
+  - Use npm workspaces with strict TypeScript. Pin Convex 1.46.0, Zod 4.6.5, TypeScript 7.0.2, Vitest 5.0.3 and convex-test 0.0.61, verified from the npm registry and current official setup documentation. Local toolchain: Node 26.0.0, npm 11.12.1; CI targets Node 24 LTS.
+  - `commands.route` is an internal mutation. Worker claim/complete/heartbeat are public mutations whose future implementation must verify a dedicated server-side worker credential. All handlers, including auth, currently throw; accepting a token argument is not implemented authentication.
+  - Shared Zod schemas are the only message/intent/decision packet definitions. Convex uses explicit JSON-string envelopes (`decisionJson`, `packetJson`) where those objects cross its API. Lane B/C must parse with the shared schemas, resolve IDs, and authorize/version-check before acting. JSON serialization does not make model output trustworthy.
+  - Store the event version and referenced-task versions on each reasoning job; each claim gets a distinct lease token. A completion cannot replace the stored snapshot by supplying newer versions.
+  - Persist the job's event ID. Explicit null event/version jobs support first-event drafting and clarification only, with no existing-event writes. Persist an outbound message's direct-reply source so send/retry code can recheck the documented onboarding/STOP exception.
+  - Add optional task location and serialized task-change proposal payload so the existing `PROPOSE_TASK_CHANGE` union has durable proposed data without overwriting the committed task.
+  - Add canonical inbound processing states and proposal categories to `03`; fix nested settings/weather shapes there. No existing enum value or function name is renamed.
+  - `seed.bootstrap` stays internal. Lane B must require verified organizer identity and use the same authorization/creation helpers as public organizer mutations. Fake fixtures are not proof of consent and cannot silently enroll real participants.
+  - Keep auth, routing, domain transitions, provider integration, inference and weather scheduling unimplemented. The empty cron configuration cannot invoke the weather stub.
+- Alternatives: duplicate the full Zod action union as Convex validators (rejected: two schema sources); run the command router as an action (deferred until a demonstrated need for external I/O); treat administrative seeding as consent (rejected by ADR-013).
+- Impact on tests/security: contract validation, strict unknown-field rejection, explicit API visibility, fixture/schema compatibility, throwing-stub behavior, and worker config handling are tested. They do not satisfy A1–A10 or replace the live Photon smoke test.
+- Evidence / link: package lock and `18-bootstrap-contract.md`. Human Convex setup completed; strict root/workspace typechecks, 64 tests, and the cloud development schema/stub deployment passed. This proves the Prompt 0 contract gate, not the live Photon or P0 product gates.
 
 ## Blocking questions (resolve in first 2 hours)
 

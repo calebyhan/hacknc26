@@ -1,6 +1,7 @@
 # Rally
 
-**Status:** implementation specification / hackathon prototype; **no functioning product is implied by this repository's documentation**.  
+**Status:** Prompt 0 contract scaffolding. Shared schemas, fakes, and a worker configuration skeleton are present; backend functions deliberately throw `NOT_IMPLEMENTED(<lane>)`. **No functioning coordination product or live Photon integration is implied.**
+
 **Primary experience:** iMessage via Photon Spectrum.  
 **Companion experience:** lightweight SwiftUI iOS app for project/event setup, explicit contact selection, membership, and live status.  
 **Backend recommendation:** Convex + TypeScript action engine.  
@@ -60,26 +61,53 @@ A **real** Photon message from a verified participant refers to an existing even
 
 Full index: [`docs/INDEX.md`](docs/INDEX.md).
 
-## Suggested workspace (not yet implemented)
+## Workspace
 
 ```text
 Rally/
-  README.md                 # This spec bundle
+  README.md                 # Setup and product specification
   AGENTS.md                 # Mandatory agent guidance
   CLAUDE.md                 # Claude Code entrypoint
   docs/                     # Design and acceptance criteria
   prompts/                  # Agent kickoff prompts per lane/checkpoint (docs/17)
-  convex/                   # Convex schema, routes, functions, tasks
-  packages/shared/          # Zod schemas, pure planners, typed contracts
-  worker/                   # Local Claude inference worker
-  ios/Rally/                # SwiftUI application
-  tests/                    # Fixtures, unit & integration tests
+  convex/                   # Schema, validated function stubs, contract tests
+  packages/shared/          # Zod schemas, fakes, fixtures, pure-function stubs
+  worker/                   # Configuration-only skeleton; no inference yet
+  tests/contracts/          # Cross-lane function inventory checks
+  scripts/                  # Contract inventory command
+  .github/workflows/        # npm ci + npm run check on PRs to main
 ```
 
-## Getting started: implementation, not pretend commands
+The P1 `ios/Rally/` app is not created by Prompt 0.
 
-1. Verify toolchain: Xcode, Node.js LTS, npm, Convex CLI, Photon dashboard access, Claude Code login.
-2. Create development Convex deployment, register Spectrum integration following **current** package docs; verify a real inbound and outbound message **before** building AI.
+## Local bootstrap checks
+
+Use Node 24 LTS (`.nvmrc`) or Node 26+, and npm 11+. Dependencies are pinned in `package-lock.json`. The first bootstrap run needs the human-run Convex initialization below to produce `_generated` before the full check can pass; later checkouts use the committed generated files.
+
+```sh
+npm ci
+npm run check
+npm run contracts:list
+```
+
+`check` typechecks the root/Convex code and both workspaces, then runs shared contract, worker, and `convex-test` tests. These tests verify the bootstrap boundary; they do not prove any P0 product acceptance scenario or live delivery.
+
+For the required first development deployment, a human runs this in the repository root, signs in, and selects/creates the Rally development project:
+
+```sh
+npx convex dev
+```
+
+The CLI creates `.env.local` with `CONVEX_DEPLOYMENT`, generates `convex/_generated/`, and deploys the schema/stubs. Keep the generated files in version control. Keep `.env.local` private. Once configured, `npm run convex:codegen` refreshes generated definitions and `npx convex dev --once` validates/deploys one development update. Convex 1.46.0 code generation also requires deployment configuration.
+
+For the worker skeleton, add the three names in `.env.example` to `.env.local`, then run `npm run worker`. Missing configuration exits nonzero. Valid configuration reports `NOT_IMPLEMENTED(lane-c)` and exits without connecting or invoking a model. `.env.example` contains no usable credentials.
+
+Prompt 0 is complete only after local checks pass, the contract inventory is verified, and the first human-run development schema deployment succeeds. See [bootstrap contract and evidence](docs/18-bootstrap-contract.md) for decisions and current verification status.
+
+## Next implementation steps
+
+1. Complete Prompt 0's development deployment and check gate, then use the lane prompts in `prompts/`.
+2. Lane A registers Spectrum integration following **current** package docs; verify a real inbound and outbound message **before** building AI.
 3. Create the minimal tables, roles, and invitation/phone-linking workflow.
 4. Implement deterministic task assignment / confirmations using a fake messaging adapter first, then wire Photon.
 5. Add the local model worker only after the deterministic vertical slice is passing.

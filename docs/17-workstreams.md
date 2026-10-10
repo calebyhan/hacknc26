@@ -54,6 +54,7 @@ Names below are the contract. Prompt 0 creates them as stubs that throw `NOT_IMP
 | `planner.ts`, `assignment.ts` | Candidate filter/score (`08`) | B |
 | `context.ts` | Event resolver + packet builder logic (`02`, `05`) | C |
 | `fixtures.ts` | Charity 5K / Hack Night seed data from `03#minimal-seed-fixture` | Prompt 0 |
+| `domain.ts`, `primitives.ts` | Strict plain-record and primitive schemas supporting fixtures and lane-owned pure-function inputs | Prompt 0 |
 
 ### `convex/` (function names; `internal.*` = not callable by clients)
 
@@ -68,21 +69,23 @@ Names below are the contract. Prompt 0 creates them as stubs that throw `NOT_IMP
 | `domain.statusFor` | internal query | B | Structured status for a user (R9) |
 | `domain.executeDecision` | internal mutation | B | Validate + execute an `AgentDecision` against current versions |
 | `inbound.ingest` | internal mutation | A | Persist + dedupe by provider message ID |
-| `commands.route` | internal action/mutation | A | `Command` → domain call or reasoning job |
+| `commands.route` | internal mutation | A | `Command` → domain call or reasoning job |
 | `invitations.createForContacts` | mutation | A | Organizer creates invitations for selected contacts (no send) |
 | `invitations.redeem` | internal mutation | A | `JOIN <code>` → membership `enrolled`, consent recorded |
 | `identity.setMessagingState` | internal mutation | A | `STOP`/`PAUSE`/`RESUME`; calls `proposals.cancelForUser` on STOP |
 | `outbox.enqueue` | internal mutation | A | Single path for every outbound message; consent check + idempotency key |
 | `reasoningJobs.enqueue` | internal mutation | C | Queue a job for a non-command message |
-| `reasoningJobs.claim`, `reasoningJobs.complete`, `reasoningJobs.heartbeat` | worker-token-guarded | C | Leased worker queue (`02`) |
+| `reasoningJobs.claim`, `reasoningJobs.complete`, `reasoningJobs.heartbeat` | public mutation, worker-token-guarded when implemented | C | Leased worker queue (`02`); stubs currently reject every call |
 | `context.buildPacket` | internal query | C | Minimal scoped packet for a job |
 | `weather.check` + `crons.ts` | internal action | C | P1 weather watch (`09`) |
+
+Prompt 0's concrete argument/return validators live with each function; the accompanying [bootstrap contract](18-bootstrap-contract.md) documents wire shapes and secure implementation requirements. Every handler and auth helper is still a throwing stub. `weather.check` exists, but `crons.ts` registers no jobs until Lane C implements P1. `seed.bootstrap` remains internal and must preserve ADR-013's organizer authorization when implemented; internal visibility alone is not permission or participant consent.
 
 ## File ownership
 
 | Path | Owner | Others may |
 |---|---|---|
-| `packages/shared/{enums,agentDecision,contextPacket,adapters,fixtures}.ts`, `convex/schema.ts` | B (after Prompt 0) | Propose via contract PR only |
+| `packages/shared/{enums,agentDecision,contextPacket,adapters,fixtures,domain,primitives}.ts`, `convex/schema.ts` | B (after Prompt 0) | Propose via contract PR only |
 | `convex/http.ts`, `convex/convex.config.ts`, `convex/{spectrum,inbound,outbox,invitations,identity,commands}.ts`, `packages/shared/{commands,copy}.ts` | A | Read |
 | `convex/{events,tasks,proposals,commitments,domain,seed}.ts`, `convex/lib/auth.ts`, `packages/shared/{planner,assignment}.ts` | B | Read; call public/internal functions |
 | `worker/`, `convex/{reasoningJobs,context,weather,crons}.ts`, `packages/shared/context.ts`, `tests/eval/` | C | Read |
