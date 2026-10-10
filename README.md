@@ -10,12 +10,12 @@
 
 ## The experience we are building
 
-1. Organizer creates a **Charity 5K** event in the iOS companion app and selects participants from Contacts.
+1. Organizer creates a **Charity 5K** event in the iOS companion app and selects participants from Contacts. *(App is P1; for P0 the event is created via iMessage draft or a labeled bootstrap script — ADR-013.)*
 2. Selected contacts receive an invitation *through a compliant, user-initiated channel*; each participant opts in by texting Rally before receiving automated DMs. A contact selection alone is **not** messaging consent.
 3. Organizer texts, “Can Jordan take over setup? Maya can't make it.” Rally knows the sender's relevant event(s), resolves ambiguity or asks which event, checks obligations, and requests Jordan's consent.
 4. Jordan replies “yes.” Rally commits the change exactly once, notifies relevant participants, and records the decision.
 5. A weather change can later prompt Rally to **propose**, not silently enact, an event adjustment.
-6. The app reflects verified state. iMessage remains the default day-to-day interface.
+6. The app (P1) reflects verified state; `STATUS` over iMessage gives the same answer. iMessage remains the default day-to-day interface.
 
 ## Core product principles
 
@@ -54,7 +54,9 @@ A **real** Photon message from a verified participant refers to an existing even
 5. [`docs/03-data-model.md`](docs/03-data-model.md) — entities and invariants.
 6. [`docs/04-messaging-and-photon.md`](docs/04-messaging-and-photon.md), [`docs/05-agent-reasoning.md`](docs/05-agent-reasoning.md) — inbound/outbound and inference.
 7. [`docs/06-workflows.md`](docs/06-workflows.md) — behavior and state machines.
-8. [`docs/11-testing-and-demo.md`](docs/11-testing-and-demo.md) — exact tests and demo.
+8. [`docs/10-security-privacy.md`](docs/10-security-privacy.md) — trust boundaries, consent and abuse rules.
+9. [`docs/11-testing-and-demo.md`](docs/11-testing-and-demo.md) — exact tests and demo.
+10. [`docs/14-decisions-and-open-questions.md`](docs/14-decisions-and-open-questions.md) — ADRs and unverified provider behavior.
 
 Full index: [`docs/INDEX.md`](docs/INDEX.md).
 

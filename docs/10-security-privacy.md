@@ -15,7 +15,7 @@ Threat actors: random texter, invited but unverified participant, malicious even
 7. **Secret handling:** put Spectrum secrets, worker credential, Claude auth and third-party keys only in protected environment. Never expose in apps, git, AI prompts, screenshots, or logs.
 8. **Data minimization:** transmit only selected contacts, relevant event data, minimal reasoning packet. Avoid recording unrelated personal chats.
 9. **Idempotency:** webhook signature check + persistent provider ID + outbox logical IDs. Check stale revisions.
-10. **Safe defaults:** if event context or permission uncertain, ask; if worker is offline, do not mutate; if an outreach attempt fails, report it accurately.
+10. **Safe defaults:** if event context or permission uncertain, ask; if the worker is offline, commit nothing that depends on inference (deterministic command paths such as `YES`/`NO`/`STATUS`/`STOP` still run, per R8/A8); if an outreach attempt fails, report it accurately.
 
 ## Privacy-specific tests
 

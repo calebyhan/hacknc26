@@ -18,6 +18,7 @@
 | `RALLY_WORKER_TOKEN` | Worker + secure server verifier | Rotate; never in iOS/app repo |
 | `RALLY_MODEL` | local worker | Model validated from subscription access |
 | `RALLY_DEMO_MODE` | server/test only | False by default; label simulations |
+| `RALLY_PHONE_HASH_KEY` | Convex server | Only if phone numbers are encrypted at rest; keyed hash for lookups (`03-data-model.md`) |
 
 Never commit `.env.local`, tokens, serialized Claude sessions, conversation logs with phone numbers, or screenshots of secret dashboards.
 
@@ -25,7 +26,7 @@ Never commit `.env.local`, tokens, serialized Claude sessions, conversation logs
 
 1. Xcode and recent Node LTS available; create repository and install Convex.
 2. Create Convex dev deployment (`npx convex dev`) and record deployment URL.
-3. Connect Photon dashboard with hackathon code `HACKWITHPHOTON`; confirm actual account plan/line settings.
+3. Sign up at `app.photon.codes/dashboard` with the hackathon promo code (briefs list both `HACKNC` and `HACKWITHPHOTON`; record which worked and the free-Pro expiry); confirm actual account plan/line settings.
 4. Install/pin `@spectrum-ts/convex`; configure component and its environment secrets using official docs; register routes.
 5. Verify inbound/real outbound DM before LLM integration.
 6. Define Convex schema and access-controlled core mutations. Add fake provider tests.

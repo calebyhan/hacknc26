@@ -22,4 +22,4 @@
 
 ## How to use
 
-A coding agent should **not** reread every file on every turn. First read `AGENTS.md` and the acceptance spec, then the one or two documents relevant to the current ticket. Write changes to docs when implementation decisions change. Source-of-truth order: explicit new user direction > current tests/working code > current ADRs > proposed docs > external examples.
+On the **first session**, a coding agent reads the mandatory list in `AGENTS.md` once. After that it should **not** reread every file on every turn: reread `AGENTS.md` and the acceptance spec, then the one or two documents relevant to the current ticket. Write changes to docs when implementation decisions change. Source-of-truth order: explicit new user direction > current tests/working code > current ADRs > proposed docs > external examples.

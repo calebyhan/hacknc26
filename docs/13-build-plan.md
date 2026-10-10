@@ -10,12 +10,12 @@ Avoid building five disconnected impressive components. Ship one complete iMessa
 | 2–5h | Convex schema, auth/opt-in + seeded event | Event/member/task state and authorization tests |
 | 5–8h | Deterministic approval workflow + fake provider | Proposed→accepted/rejected cases pass without Claude |
 | 8–12h | Event context + local Claude worker | Structured intent parsed safely; ambiguous request asks |
-| 12–16h | SwiftUI setup/status + selected contacts | One event created and status synced with real DB |
-| 16–19h | Reassignment heuristic + cancellation | Real replacement accepted and committed once |
-| 19–21h | Weather OR flyer parsing, not both if behind | One authentic or labeled simulated proactive flow |
+| 12–15h | Reassignment heuristic + cancellation (W5) | Real replacement accepted and committed once |
+| 15–19h | SwiftUI setup/status + selected contacts | One event created and status synced with real DB |
+| 19–21h | Weather first; flyer parsing only if weather is done | One authentic or labeled simulated proactive flow |
 | 21–24h | Security, integration tests, rehearsal | P0 demo gate and backup video |
 
-These are **parallel team workstreams**, not guarantees for a single developer.
+Rows are in dependency order and match the implementation order in `CLAUDE.md`. With more than one person, the iOS workstream can start earlier in parallel against the shared fixture contract; it is not on the P0 path (ADR-013). These are not guarantees for a single developer.
 
 ## Suggested task split
 
@@ -40,4 +40,4 @@ At **hour 5**, if real Photon traffic fails: escalate to Photon Discord/help and
 
 ## Pitch structure
 
-Problem (10s), two-person live coordination (45s), disruption resolved (25s), engineering depth (20s), track relevance and future plans (15s). Adjust to actual judge time constraints; do not misrepresent mocked integrations.
+Problem (10s), live demo following the 90-second storyboard in `11-testing-and-demo.md` (90s), engineering depth (20s), track relevance and future plans (15s): about 2:15 total. Adjust to actual judge time constraints; do not misrepresent mocked integrations.

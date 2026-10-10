@@ -34,14 +34,14 @@ Use `docs/INDEX.md` for the remainder.
 - TypeScript strict mode; define all message/intent/plan schemas in one shared package with runtime validation (e.g. Zod).
 - Every public Convex function must validate identity **and membership/role**. Protect worker operations using server-verified credentials. Use internal functions for privileged orchestration.
 - Persist inbound message IDs and deduplicate before any side effect. Use an outbox with unique idempotency keys for sends.
-- **LLM output is untrusted data**. Validate, authorize, check event version, and require approvals for consequential actions.
+- **LLM output is untrusted data**. Validate, authorize, check event and task versions, and require approvals for consequential actions.
 - Never mark a task confirmed based on model text or an outbound request. Only the correct participant's acceptance (or authorized override) changes it.
 - Never reveal private schedule/budget/contact information across unrelated events.
 - Avoid sending to numbers that have not opted in or established a permitted inbound conversation.
 - Handle weather as an external **signal**, not blanket approval to reschedule people.
 - Run the core confirmation/status/cancellation paths with no model access.
 - Do not put Claude Code shell or filesystem operations under the control of an arbitrary SMS/iMessage sender. Give the runtime model no broad computer tools.
-- For all external side effects: distinguish `proposed`, `queued`, `sent`, `delivered` (only with receipt), `confirmed`, `failed`.
+- Keep domain state and delivery state separate: proposal `pending` ≠ commitment `active`; outbound `queued` ≠ `sent` (provider accepted) ≠ `delivered` (only with receipt) ≠ `failed`/`unknown`. Use only the canonical enums in `docs/03-data-model.md`.
 - Keep local secrets in environment configuration, never git. Use fixtures and fake recipients for tests.
 
 ## Scope guardrails
@@ -64,10 +64,10 @@ Do not silently substitute a mocked provider for real Photon in demo documentati
 
 ## First four coding tasks
 
-1. Setup the repo and deterministic domain/test harness (`participants`, `events`, `memberships`, `tasks`, `pendingActions`).
-2. Integrate Photon/Convex to **receive and send a real opted-in DM**; persist and dedupe.
-3. Build `propose_reassignment → accept/reject → commit` as a deterministic, idempotent workflow.
-4. Add compact-context event resolver and constrained Claude worker behind an adapter.
+1. Setup the repo and integrate Photon/Convex to **receive and send a real opted-in DM**; persist and dedupe (ticket T0).
+2. Deterministic domain/test harness (`users`, `events`, `memberships`, `tasks`, `commitments`, `proposals`, `invitations`), invitations and command router (T1, T2).
+3. Build `propose_reassignment → accept/reject → commit` as a deterministic, idempotent workflow (T3).
+4. Add compact-context event resolver and constrained Claude worker behind an adapter (T4, T5).
 
 ## Definition of quality
 

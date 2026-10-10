@@ -8,7 +8,7 @@
 |---|---|---|
 | ADR-001 | DECIDED | Required HackNC track: General; required sponsor track: Photon with Spectrum. Other tracks opportunistic. |
 | ADR-002 | DECIDED | iMessage is the principal interface; iOS is setup/contact selection/status, not primary chat UI. |
-| ADR-003 | DECIDED | Need both structured event and casual friend-group planning eventually; event-first MVP. |
+| ADR-003 | DECIDED | Need both structured event and casual friend-group planning eventually; event-first MVP. Schema includes `kind:event|project`; only `event` is exposed in MVP UX. |
 | ADR-004 | DECIDED | Mac (Apple Silicon category, exact model/RAM unknown) and existing Claude Code subscription; no assumed paid inference API. |
 | ADR-005 | PROPOSED | Convex + Photon official `@spectrum-ts/convex` integration for durable messaging and serverless state. |
 | ADR-006 | PROPOSED | Local Claude worker invoked via permitted subscription access; deterministic fallback for confirmations and status. |
@@ -16,10 +16,47 @@
 | ADR-008 | PROPOSED | Weather watch via Open-Meteo is P1; never unilaterally reschedules event. |
 | ADR-009 | PROPOSED | Selected contacts → invite state → participant-initiated verified opt-in; avoid contact bulk sync. |
 | ADR-010 | PROPOSED | Single-event status view before widget and additional calendar integrations. |
+| ADR-011 | DECIDED | Reassignment, cancellation and organizer-approval policy. See below. |
+| ADR-012 | VERIFY | MVP is 1:1 DMs only; group-chat participation depends on Photon permissions. See below. |
+| ADR-013 | DECIDED | P0 does not depend on the iOS app; events are created via iMessage draft or a labeled bootstrap script. See below. |
+| ADR-014 | DECIDED | Persisted state enums live only in `03-data-model.md#canonical-state-enums`; display labels are derived (`06-workflows.md#status-vocabulary`). |
+| ADR-015 | DECIDED | Two-level optimistic versioning: `events.version` for event-level fields, `tasks.version` per task; proposals and worker output check both (`03-data-model.md` invariants 5–6). Prevents one task's change from invalidating offers on other tasks. |
+
+### ADR-011 — Reassignment, cancellation and organizer approval
+- Date: 2026-10-10
+- State: DECIDED (user delegated the call to the agent, 2026-10-10)
+- Context: README/demo use both “Can Jordan cover setup?” (suggestion) and “Maya can't make it” (cancellation). A2 said “handled according to policy” with no policy; W3 reverted a declined replacement to the canceled person; “organizer approval where required” was undefined.
+- Decision:
+  - *Organizer suggests replacement:* current assignee stays `active` until target accepts; on accept → old commitment `released`, one notice to the old assignee. Decline/expiry → no change.
+  - *Assignee self-cancels:* commitment `canceled_by_participant`, task `needs_coverage`, organizer notified.
+  - *Organizer reports someone unavailable:* treated as an audited organizer override; commitment `released`, task `needs_coverage`, one notice to that person. A declined replacement leaves the task `needs_coverage`.
+  - *Non-organizer reports someone else unavailable:* no state change.
+  - *Organizer approval (`requiresOrganizerApproval`)* is required when a non-organizer proposes assigning someone other than themself, and for planner-recommended candidates (W5) before the candidate is contacted. Not required for organizer-initiated proposals or self-commitments to open tasks (organizer is notified).
+- Alternatives: require the reported person's direct confirmation before releasing (safer, slower, needs a second reply in the demo); auto-release on any member report (rejected: third-party testimony).
+- Impact on tests/security: A2 asserts Maya `released`; add tests for organizer-report → `needs_coverage` and declined replacement staying `needs_coverage`; non-organizer report → no write (ST-18 in `11-testing-and-demo.md`).
+- Evidence / link: `06-workflows.md` W3, `05-agent-reasoning.md` action union.
+
+### ADR-012 — DM-only MVP vs group-chat participation
+- Date: 2026-10-10
+- State: VERIFY
+- Context: Photon's track brief lists “agents that join human-to-human conversations” first, and judging weights **Vision**. Public pricing puts full group-messaging API on Business; Pro shared lines are DM-oriented.
+- Decision: Build P0 on enrolled 1:1 DMs sharing one canonical event state. Ask Photon (Discord) in hour 0–2 whether the hackathon Pro grants group-chat access. If yes, add “Rally responds when mentioned in an existing group chat, scoped to that chat's linked event” as P1 after the P0 gate; if no, frame DM fan-out as the deliberate privacy design in the pitch.
+- Alternatives: require group chat for P0 (rejected: unverified entitlement could block the whole demo).
+- Impact on tests/security: group chat would need per-chat event scoping and must not leak one member's DM-only data into the group.
+- Evidence / link: pasted Photon guidelines; `04-messaging-and-photon.md` plan-tier constraints.
+
+### ADR-013 — P0 without the iOS app
+- Date: 2026-10-10
+- State: DECIDED (user delegated the call to the agent, 2026-10-10)
+- Context: R2/R3 required the contact picker and in-app event creation, but the iOS screen is P1 and SwiftUI is scheduled after the core loop.
+- Decision: P0 event/task/invited-membership creation uses either the iMessage draft flow (W2) or a labeled bootstrap script run by an authenticated organizer **before** the demo. Neither path sends invitations; participants still `JOIN <code>`. The iOS contact picker replaces the bootstrap path in P1.
+- Alternatives: promote the iOS create/select screen to P0 (costs ~4h before the reassignment loop exists).
+- Impact on tests/security: bootstrap script must use the same authorized mutations (no admin bypass) and be disclosed as setup, not shown as a live agent action.
+- Evidence / link: `01-scope-and-acceptance.md` R2/R3.
 
 ## Blocking questions (resolve in first 2 hours)
 
-1. **Photon account:** Does hackathon promo provide just shared Pro DMs or special dedicated/group permissions? Can newly selected contacts be invited compliantly, and how does participant provisioned number flow work? Record actual test.
+1. **Photon account:** The briefs list two promo codes (`HACKNC` in the track blurb, `HACKWITHPHOTON` in the Notion guidelines); record which one activated Pro and when the free month ends. Does hackathon promo provide just shared Pro DMs or special dedicated/group permissions (ADR-012)? Can newly selected contacts be invited compliantly, and how does participant provisioned number flow work? Record actual test.
 2. **Convex component:** Which installed `@spectrum-ts/convex` version, and how do replies, grouping/collapse, outbound IDs, and explicit send capabilities behave? Pin versions.
 3. **Claude runtime:** Which Claude account tier/model is accessible? Can local Agent SDK/`claude -p` be used for the intended prototype under current Anthropic terms, and what are real latency/rate limits? Test from Mac with a safe one-turn JSON task.
 4. **App authentication:** Which supported iOS/Convex auth provider is fastest for real organizer identity? Do not leave public mutations exposed.
@@ -29,8 +66,6 @@
 
 ## Non-blocking questions
 
-- Does the team want organizer override to release a pending assignment? If yes, model explicit override and audit.
-- Multiple ongoing projects: include as `kind:project` now or wait until after event-first MVP?
 - Should “casual mode” have explicit RSVPs or lightweight interest counts?
 - Is the iOS widget worth the time after full acceptance gate?
 - Which optional calendar integration is most useful if time remains?
@@ -38,7 +73,7 @@
 ## Decision log template
 
 ```markdown
-### ADR-011 — [Title]
+### ADR-016 — [Title]
 - Date:
 - State: DECIDED / PROPOSED / VERIFY / SUPERSEDED
 - Context:

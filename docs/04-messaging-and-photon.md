@@ -20,12 +20,28 @@ Because a Pro shared line may assign different numbers to different participants
 
 ## Sender enrollment and opt-in
 
-1. Organizer picks specific contacts in-app, sees a review/consent screen.
+1. Organizer picks specific contacts in-app (or, for P0 without the app, via the labeled bootstrap path in ADR-013), sees a review/consent screen.
 2. Rally creates short-lived invitation references but does **not** automatically blast numbers. Share invite instruction through a user-controlled method or an authorized provider flow.
-3. Participant initiates inbound message to the agent, optionally with a one-time code to link to the selected contact identity.
-4. Upon successful verification, set membership `enrolled`, record notification consent with scope/event and timestamp.
-5. Allow `STOP`, `PAUSE`, `RESUME`, and `LEAVE <event>` to update preferences. Handle these deterministically before model invocation.
-6. If no opt-in or messaging relationship exists, expose a status `awaiting_join` to organizer; do not send an unsolicited message.
+3. Participant initiates an inbound message to the agent containing `JOIN <code>` from their invitation. The code is **required**: it links the sending phone to the selected contact and proves phone control. A message without a valid code gets the unknown-sender onboarding reply (A6) and no event data.
+4. Upon successful verification, mark the invitation `redeemed`, set membership `enrolled`, and record `consentAt` / `consentSourceMessageId` on that membership (consent is event-scoped).
+5. Handle the [deterministic commands](#deterministic-commands) before any model invocation.
+6. If no opt-in or messaging relationship exists, the membership stays `invited` and the organizer sees "Waiting for them to text Rally"; do not send an unsolicited message.
+
+## Deterministic commands
+
+Canonical list, parsed case-insensitively before context resolution or any model job. Other docs reference this table rather than restating it.
+
+| Command | Who | Effect |
+|---|---|---|
+| `JOIN <code>` | Anyone | Redeem a `pending` invitation (W1). Invalid/expired code → generic onboarding reply, increment `failedAttempts`. |
+| `YES` / `NO` | Target of a pending proposal | Accept/decline **their** pending proposal. If they have several, ask which one (W4). |
+| `STATUS` | Enrolled member | Summary of their events/commitments/pending proposals, scoped to their membership (R9). |
+| `HELP` | Anyone | Command list; no event data for unknown senders. |
+| `STOP` | Anyone known | `users.messagingState=stopped`; cancel their queued optional outbound and their pending proposals; one acknowledgement. |
+| `PAUSE` / `RESUME` | Enrolled member | `messagingState` → `paused` / `active`. |
+| `LEAVE <event>` | Enrolled member | Membership → `left`; cancel pending proposals targeting them in that event; organizer notified. |
+
+Equivocal replies (“maybe”, “probably”) are **not** `YES`; leave pending and ask for YES or NO.
 
 ## Inbound pipeline
 
@@ -36,7 +52,7 @@ Photon inbound webhook
   -> dedupe and normalize content
   -> link sender to enrolled phone/user if possible
   -> capture recent consecutive messages via debounce where safe
-  -> parse STOP/YES/NO/status/pending proposal deterministically
+  -> parse deterministic commands (JOIN/YES/NO/STATUS/HELP/STOP/PAUSE/RESUME/LEAVE)
   -> context resolution and/or inference job
   -> validation/approval workflow
   -> outbox send, with retries and reconciliation
@@ -58,7 +74,7 @@ A message may contain photos or other attachments; store only necessary referenc
 
 ## Failure cases to implement
 
-Invalid webhook signature → reject. Duplicate message → acknowledge with no second side effect. Unknown sender → onboarding/limited help. Missing participant consent → no outbound. Provider timeout → mark `unknown` or failed and reconcile before duplicate retry. Spam burst → per-user throttling and clear UX. Worker offline → deterministic handling and transparent delayed response.
+Invalid webhook signature → reject. Duplicate message → acknowledge with no second side effect. Unknown sender → onboarding/limited help. Missing participant consent → no outbound. Provider timeout → outbound `state=unknown` (or `failed`) and reconcile before duplicate retry. Spam burst → per-user throttling and clear UX. Worker offline → deterministic handling and transparent delayed response.
 
 ## Provider spike checklist
 

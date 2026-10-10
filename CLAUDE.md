@@ -10,7 +10,7 @@ Follow `AGENTS.md` as the primary agent guidance and `docs/INDEX.md` as the map.
 
 **Core invariants:** Phone contact selection != consent; LLM text != authorization; proposed assignment != confirmed assignment; an unverified event reference != permission; a successful HTTP call != user acceptance.
 
-**Implementation order:** Photon + durable inbox/outbox → event/task state → opt-in and approval → deterministic resolution and replanning → Claude worker → SwiftUI → weather → polish.
+**Implementation order:** Photon + durable inbox/outbox → event/task state → opt-in, command router and approval → deterministic resolution → Claude worker → cancellation replanning → SwiftUI → weather → polish (matches `docs/13-build-plan.md`).
 
 **Default constraints:** iMessage primary; no group-chat requirement on shared Photon Pro; local Claude subscription is rate-limited and the worker may go offline; avoid large prompts and unnecessary LLM calls; preserve privacy boundaries across events.
 

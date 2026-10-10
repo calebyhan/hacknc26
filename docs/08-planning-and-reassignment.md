@@ -34,17 +34,17 @@ Hard constraint violation removes candidate, even if score is high. Use stable d
 
 ## Example
 
-`Maya drops setup 10:00–11:00` → event has `Jordan available 10:00–11:00`, no conflict; `Alex busy`; `Taylor not enrolled`. Candidate list contains Jordan only. Rally proposes Jordan, asks organizer where required and Jordan for acceptance; commits **after** acceptance.
+`Maya drops setup 10:00–11:00` → event has `Jordan available 10:00–11:00`, no conflict; `Alex busy`; `Taylor not enrolled`. Candidate list contains Jordan only. Because Jordan is a planner-recommended candidate, Rally first asks the organizer to approve (ADR-011), then asks Jordan; commits **after** Jordan accepts.
 
 ## Concurrency and correctness
 
-Use event version+proposal id; on acceptance, atomically recheck task assignee, availability, role, proposal `pending` state, TTL, and version. If a competing acceptance already won, reply truthfully; never overwrite another valid confirmation accidentally.
+Use event version + target task version + proposal id; on acceptance, atomically recheck the task's `active` commitments against `capacity`, availability, role, proposal `pending` state, TTL, and version. If a competing acceptance already won, reply truthfully; never overwrite another valid confirmation accidentally.
 
 ## Tests
 
 - Same candidate with overlapping shifts → reject.
 - One unconfirmed availability entry → ask, not auto-assign.
-- Optimizer returns no candidate → status `unfilled`, with reason codes.
+- Optimizer returns no candidate → task stays `needs_coverage` (or `unassigned`), no proposal created, reason code `NO_ELIGIBLE_CANDIDATE` reported to organizer.
 - Two equal candidates → deterministic order.
 - A task with 2-person capacity → accept 2 and reject 3rd.
 - State changes during reasoning → stale plan rejected and recomputed.

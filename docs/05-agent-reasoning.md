@@ -12,7 +12,7 @@ Run a persistent Node.js/TypeScript process on the team's Apple Silicon Mac. Use
 
 ## Three-tier handling
 
-1. **Rules (no model):** `YES`, `NO`, `STOP`, `STATUS`, `HELP`, pending proposal confirmation, known event short IDs, deadline checks, scripted fallback.
+1. **Rules (no model):** the [deterministic commands](04-messaging-and-photon.md#deterministic-commands) (`JOIN`, `YES`, `NO`, `STATUS`, `HELP`, `STOP`, `PAUSE`, `RESUME`, `LEAVE`), pending proposal confirmation, known event short IDs, deadline checks, scripted fallback.
 2. **Small model job:** intent extraction, entity reference resolution, conversational event lookup, short clarifications.
 3. **Complex model job (optional):** compound asks, long unstructured event description, text extracted from flyer/photo, proposed task constraints.
 
@@ -27,9 +27,9 @@ Run a persistent Node.js/TypeScript process on the team's Apple Silicon Mac. Use
     {"id": "event_charity_5k", "title": "Charity 5K", "startsAt": "2026-10-17T14:00:00Z"}
   ],
   "relevantTasks": [
-    {"id": "task_setup", "name": "setup", "assigneeId": "usr_maya", "status": "confirmed"}
+    {"id": "task_setup", "name": "setup", "activeAssigneeIds": ["usr_maya"], "status": "confirmed", "version": 3}
   ],
-  "pendingActionsForSender": [],
+  "pendingProposalsForSender": [],
   "incomingText": "Maya can't do setup. Could Jordan cover it?",
   "eventVersion": 7
 }
@@ -65,9 +65,12 @@ Proposed discriminated action union:
 
 - `CREATE_EVENT_DRAFT` (never publish without organizer confirmation)
 - `ADD_INVITEE_DRAFT` (does not enroll or send without consent)
-- `PROPOSE_ASSIGNMENT`
-- `PROPOSE_REASSIGNMENT`
-- `RECORD_AVAILABILITY` (from speaker about themself only)
+- `PROPOSE_ASSIGNMENT` (assign an open task to a named participant; target must accept)
+- `PROPOSE_REASSIGNMENT` (organizer suggests replacing a current assignee; current assignee stays `active` until target accepts — ADR-011)
+- `RECORD_SELF_COMMITMENT` (speaker volunteers **themself**: the speaker's own message is their acceptance, so the backend creates an `active` commitment on a matching open task, or on a new organizer-visible task for a new item; organizer notified; subject to capacity and conflict checks; e.g. “I can bring speakers”, R4)
+- `REPORT_UNAVAILABILITY` (`participantRef`, `taskRef?`, `window?`; from the speaker about themself → cancellation; from the organizer about someone else → organizer override per ADR-011; from any other member about someone else → no write, clarify)
+- `PROPOSE_TASK_CHANGE` (organizer only; `taskRef`, `field: time|location`, `newValue`; creates a proposal, affected active assignees must reconfirm; e.g. “move setup to 9”, A4)
+- `RECORD_AVAILABILITY` (speaker about themself only)
 - `REQUEST_STATUS`
 - `ASK_CLARIFICATION`
 - `NO_ACTION`
@@ -79,14 +82,14 @@ No `RAW_HTTP`, `EXECUTE_CODE`, `SEND_ANY_MESSAGE`, `MARK_CONFIRMED`, or `UPDATE_
 1. Parse valid JSON; reject if invalid or extra actions exceed cap.
 2. Resolve event in authorized membership scope. Require explicit choice when ambiguous.
 3. Resolve people and task names against *that event's* members and tasks.
-4. Revalidate event version and permissions inside mutation.
+4. Revalidate event version, referenced task versions, and permissions inside mutation.
 5. Create proposals for cross-person actions; do not execute silently.
 6. Compose outbound message from trusted structured state, not raw model-generated assertion.
 7. Record event/action trace for audit and debugging.
 
 ## Intent confidence policy
 
-Use `clear|ambiguous|unsupported`; avoid uncalibrated invented confidence percentages. Default to clarify if two plausible event matches remain or an action could surprise a participant. Timeout after a bounded period and ask the user to retry or simplify instead of fabricating success.
+Use `clear|ambiguous|unsupported`; avoid uncalibrated invented confidence percentages. The single source of truth for “must clarify” is `confidenceClass=ambiguous`; `needsClarification` must equal it (validator rejects mismatches), and `ASK_CLARIFICATION` is the only action allowed alongside it. Default to clarify if two plausible event matches remain or an action could surprise a participant. Timeout after a bounded period and ask the user to retry or simplify instead of fabricating success.
 
 ## Failure and cost control
 
