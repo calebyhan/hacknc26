@@ -80,7 +80,7 @@ describe("context and commands", () => {
     expect(ContextPacketSchema.safeParse({ ...exampleContextPacket, relevantTasks: [{ ...exampleContextPacket.relevantTasks[0], version: 0 }] }).success).toBe(false);
   });
 
-  it("defines all deterministic commands but leaves parsing to lane A", () => {
+  it("defines all deterministic commands and parses explicit YES", () => {
     const commands = [
       { type: "JOIN", code: "fixture-code" },
       ...["YES", "NO", "STATUS", "HELP", "STOP", "PAUSE", "RESUME"].map((type) => ({ type })),
@@ -90,7 +90,7 @@ describe("context and commands", () => {
     for (const command of commands) expect(CommandSchema.safeParse(command).success).toBe(true);
     expect(CommandSchema.safeParse({ type: "JOIN" }).success).toBe(false);
     expect(CommandSchema.safeParse({ type: "YES", userId: "usr_jordan" }).success).toBe(false);
-    expect(() => parseCommand("YES")).toThrow("NOT_IMPLEMENTED(lane-a)");
+    expect(parseCommand("YES")).toEqual({ type: "YES" });
   });
 });
 

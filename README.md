@@ -1,6 +1,6 @@
 # Rally
 
-**Status:** Prompt 0 contract scaffolding. Shared schemas, fakes, and a worker configuration skeleton are present; backend functions deliberately throw `NOT_IMPLEMENTED(<lane>)`. **No functioning coordination product or live Photon integration is implied.**
+**Status:** A real Photon HELP DM reached Convex, received a provider-accepted reply, and the user confirmed the reply on their phone. A constructed signed replay of the same real message ID created no second reply. Lane A local tests also pass for invitations/JOIN, opt-out controls and routing. **Live event enrollment and the coordination vertical slice remain incomplete:** Lane B/C domain and reasoning functions are still stubs. See [messaging evidence and setup](docs/19-messaging-evidence.md).
 
 **Primary experience:** iMessage via Photon Spectrum.  
 **Companion experience:** lightweight SwiftUI iOS app for project/event setup, explicit contact selection, membership, and live status.  
@@ -106,8 +106,8 @@ Prompt 0 is complete only after local checks pass, the contract inventory is ver
 
 ## Next implementation steps
 
-1. Complete Prompt 0's development deployment and check gate, then use the lane prompts in `prompts/`.
-2. Lane A registers Spectrum integration following **current** package docs; verify a real inbound and outbound message **before** building AI.
+1. Join the existing Convex team and authenticate locally; confirm the development deployment used for Photon. Run `npm run messaging:configure` to check server configuration and create the server-only messaging key if absent.
+2. Deploy with `npx convex dev --once`; configure the native Photon webhook at that deployment's `/spectrum/webhook`. Verify a real inbound and outbound DM before building AI. See [the runbook](docs/19-messaging-evidence.md).
 3. Create the minimal tables, roles, and invitation/phone-linking workflow.
 4. Implement deterministic task assignment / confirmations using a fake messaging adapter first, then wire Photon.
 5. Add the local model worker only after the deterministic vertical slice is passing.

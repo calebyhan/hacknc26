@@ -35,13 +35,8 @@ describe("Convex bootstrap stubs (in-memory simulation)", () => {
     expect(await t.run(async (ctx) => ctx.db.query("workerHeartbeats").collect())).toEqual([]);
   });
 
-  it("keeps ingress and seed stubs inert", async () => {
+  it("keeps the lane B seed stub inert", async () => {
     const t = convexTest(schema, modules);
-    await expect(t.mutation(internal.inbound.ingest, {
-      provider: "fake", providerMessageId: "fixture-inbound-1",
-      senderPhone: "+15550000001", receivedAt: 1_792_246_800_000,
-      contentType: "text/plain",
-    })).rejects.toThrow("NOT_IMPLEMENTED(lane-a)");
     await expect(t.mutation(internal.seed.bootstrap, {}))
       .rejects.toThrow("NOT_IMPLEMENTED(lane-b)");
     expect(await t.run(async (ctx) => ctx.db.query("inboundMessages").collect())).toEqual([]);

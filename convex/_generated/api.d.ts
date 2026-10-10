@@ -19,11 +19,15 @@ import type * as identity from "../identity.js";
 import type * as inbound from "../inbound.js";
 import type * as invitations from "../invitations.js";
 import type * as lib_auth from "../lib/auth.js";
+import type * as lib_messaging from "../lib/messaging.js";
+import type * as lib_messagingDelivery from "../lib/messagingDelivery.js";
 import type * as lib_validators from "../lib/validators.js";
 import type * as outbox from "../outbox.js";
 import type * as proposals from "../proposals.js";
 import type * as reasoningJobs from "../reasoningJobs.js";
 import type * as seed from "../seed.js";
+import type * as spectrum from "../spectrum.js";
+import type * as spectrumSender from "../spectrumSender.js";
 import type * as tasks from "../tasks.js";
 import type * as weather from "../weather.js";
 
@@ -45,11 +49,15 @@ declare const fullApi: ApiFromModules<{
   inbound: typeof inbound;
   invitations: typeof invitations;
   "lib/auth": typeof lib_auth;
+  "lib/messaging": typeof lib_messaging;
+  "lib/messagingDelivery": typeof lib_messagingDelivery;
   "lib/validators": typeof lib_validators;
   outbox: typeof outbox;
   proposals: typeof proposals;
   reasoningJobs: typeof reasoningJobs;
   seed: typeof seed;
+  spectrum: typeof spectrum;
+  spectrumSender: typeof spectrumSender;
   tasks: typeof tasks;
   weather: typeof weather;
 }>;
@@ -80,4 +88,6 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  spectrum: import("@spectrum-ts/convex/_generated/component.js").ComponentApi<"spectrum">;
+};
