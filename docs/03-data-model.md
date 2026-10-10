@@ -1,6 +1,6 @@
 # Proposed data model and invariants
 
-Use Convex document IDs and indexed queries. Field names below are the **domain contract**; Prompt 0 declares them in `convex/schema.ts`, with tested schema validation. Domain transitions and authorization remain unimplemented stubs. Creation time uses Convex `_creationTime` unless a field is listed explicitly.
+Use Convex document IDs and indexed queries. Field names below are the **domain contract**. Lane A messaging and Lane B authorization/domain transitions have simulation test evidence; the live group coordination gate remains pending. See `20-domain-evidence.md`. Creation time uses Convex `_creationTime` unless a field is listed explicitly.
 
 ## Entities
 
@@ -18,9 +18,9 @@ Use Convex document IDs and indexed queries. Field names below are the **domain 
 | `inboundMessages` | `provider`, `providerMessageId`, `senderPhone`, `receivedAt`, `contentType`, `bodyRedactedOrEncrypted?`, `eventId?`, `processingState` | `by_provider_message_id`, `by_sender` |
 | `outboundMessages` | `idempotencyKey`, `recipientUserId`, `eventId?`, `proposalId?`, `directReplyToMessageId?`, `content`, `state`, `attemptCount`, `providerMessageId?` | `by_key`, `by_state` |
 | `conversationFocus` | `userId`, `lastEventId?`, `lastIntent?`, `updatedAt`, `expiresAt` | `by_user` |
-| `reasoningJobs` | `messageId`, `eventId` (nullable), `contextVersion` (nullable), `taskVersions`, `status`, `leaseOwner?`, `leaseToken?`, `leaseUntil?`, `attempts`, `result?`, `failureCategory?` | `by_status`, `by_message` |
+| `reasoningJobs` | `messageId`, `eventId` (nullable), `contextVersion` (nullable), `taskVersions`, `status`, `leaseOwner?`, `leaseToken?`, `leaseUntil?`, `attempts`, `result?`, `failureCategory?`, `executedDecisionJson?`, `executionResultJson?` | `by_status`, `by_message` |
 | `workerHeartbeats` | `workerId`, `lastHeartbeatAt`, `modelId?`, `lastError?` | `by_worker` |
-| `auditEvents` | `actorType:user|agent|system`, `actorId?`, `eventId`, `action`, `oldStateRef?`, `newStateRef?`, `at`, `sourceId` | `by_event`, `by_time` |
+| `auditEvents` | `actorType:user|agent|system`, `actorId?`, `eventId`, `action`, `oldStateRef?`, `newStateRef?`, `at`, `sourceId` | `by_event`, `by_time`, `by_source` |
 | `weatherObservations` | `eventId`, `source`, `retrievedAt`, `forecastFor`, `precipProbability?`, `thresholdCrossed`, `policyVersion` | `by_event_time` |
 
 Minimize persisted selected contact data; ideally store only participants explicitly added to an event, not the entire address book. Phone numbers may require encryption/limited access; keep third-party contact data out of prompts. Encrypted values can't be looked up, so if phone numbers are encrypted at rest, index a keyed hash (HMAC-SHA256 with a server-only `RALLY_PHONE_HASH_KEY`) of the normalized E.164 value for `by_phone`, `by_sender` and invitation matching, and keep the encrypted value for display only.
@@ -57,6 +57,7 @@ Prompt 0 fixes these previously unspecified nested shapes. They describe contrac
 - `reasoningJobs.eventId` binds the job to its authorized event, independently of model output or later conversation focus. For a first-event draft or clarification with no selected event, both `eventId` and `contextVersion` are `null`, and `taskVersions` is empty. Such a job permits only `CREATE_EVENT_DRAFT`, `ASK_CLARIFICATION`, or `NO_ACTION`; an unscoped result cannot acquire authority to modify existing events.
 - `reasoningJobs.taskVersions`: array of `{taskId, version}` captured by trusted enqueue code alongside `contextVersion`. Completion checks this persisted snapshot, not a worker-supplied replacement snapshot. A unique `leaseToken` identifies each claim independently of the long-lived worker identity.
 - `reasoningJobs.result`: canonical JSON text of a validated shared `AgentDecision`. `decisionJson` and `packetJson` function arguments/results are serialized wire envelopes; implementations must parse them using the shared Zod schemas before using them. A string validator alone does not validate a model decision.
+- `executedDecisionJson` / `executionResultJson`: Lane B's canonical validated decision and its transaction result. These cache a successful execution, including null-scope clarification/drafts, independently of worker completion. A replay must match the cached decision; it cannot change the action. The audit `by_source` index supports transactional request deduplication and binds each YES/NO message to one proposal response.
 
 The schema and all backend functions are bootstrap scaffolding until the owning lane implements and tests their behavior.
 

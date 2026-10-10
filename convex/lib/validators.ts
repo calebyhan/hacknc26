@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { DisplayLabelSchema } from "@rally/shared/domain";
 import {
   commitmentStates,
   eventStatuses,
@@ -30,6 +31,7 @@ export const outboundState = enumValidator(outboundStates);
 export const reasoningJobStatus = enumValidator(reasoningJobStatuses);
 export const inboundProcessingState = enumValidator(inboundProcessingStates);
 export const role = v.union(v.literal("organizer"), v.literal("member"));
+export const displayLabel = v.union(...DisplayLabelSchema.options.map(label => v.literal(label)));
 
 export const settings = v.object({
   timezone: v.optional(v.string()),
@@ -66,6 +68,7 @@ export const eventSummary = v.object({
 });
 
 export const taskSummary = v.object({
+  displayLabel: v.optional(displayLabel),
   _id: v.id("tasks"),
   eventId: v.id("events"),
   title: v.string(),
@@ -79,6 +82,7 @@ export const taskSummary = v.object({
 });
 
 export const proposalSummary = v.object({
+  displayLabel: v.optional(displayLabel),
   _id: v.id("proposals"),
   eventId: v.id("events"),
   type: proposalType,
@@ -91,6 +95,7 @@ export const proposalSummary = v.object({
 });
 
 export const memberSummary = v.object({
+  displayLabel: v.optional(displayLabel),
   userId: v.id("users"),
   displayName: v.string(),
   role,

@@ -174,6 +174,9 @@ export default defineSchema({
     // Canonical JSON, parsed with the shared AgentDecisionSchema before any use.
     result: v.optional(v.string()),
     failureCategory: v.optional(v.string()),
+    // Domain execution cache is separate from the worker's validated model result.
+    executedDecisionJson: v.optional(v.string()),
+    executionResultJson: v.optional(v.string()),
   }).index("by_status", ["status"]).index("by_message", ["messageId"]),
 
   workerHeartbeats: defineTable({
@@ -192,7 +195,7 @@ export default defineSchema({
     newStateRef: v.optional(v.string()),
     at: v.number(),
     sourceId: v.string(),
-  }).index("by_event", ["eventId"]).index("by_time", ["at"]),
+  }).index("by_event", ["eventId"]).index("by_time", ["at"]).index("by_source", ["sourceId"]),
 
   weatherObservations: defineTable({
     eventId: v.id("events"),
