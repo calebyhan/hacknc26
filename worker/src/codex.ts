@@ -8,7 +8,13 @@ import { systemPrompt } from "./prompt.ts";
 // than silently assuming flags still disable the same capabilities.
 const supportedVersion = "codex-cli 0.152.1";
 const disabledHostNotice = "Code Mode is unavailable because code-mode host is disabled. Code mode will fail closed; enable `features.code_mode_host` and install `codex-code-mode-host`.";
-const disabledFeatures = ["shell_tool", "shell_snapshot", "unified_exec", "apps", "plugins", "remote_plugin", "hooks", "memories", "multi_agent", "multi_agent_v2", "browser_use", "browser_use_external", "computer_use", "view_image", "image_generation", "code_mode", "code_mode_host", "skill_search", "goals", "sleep_tool", "tool_suggest"];
+const disabledFeatures = [
+  "shell_tool", "shell_snapshot", "unified_exec", "apps", "enable_mcp_apps", "plugins", "remote_plugin", "hooks", "memories", "multi_agent", "multi_agent_v2",
+  "browser_use", "browser_use_external", "browser_use_full_cdp_access", "computer_use", "view_image", "image_generation", "artifact",
+  "code_mode", "code_mode_host", "deferred_executor", "deferred_tool_world_state", "executor_capability_discovery",
+  "in_app_browser", "in_app_chat", "in_app_dictation", "in_app_local_automation", "in_app_updates",
+  "skill_search", "skill_mcp_dependency_install", "workspace_dependencies", "auth_elicitation", "tool_call_mcp_elicitation", "request_permissions_tool", "goals", "sleep_tool", "tool_suggest",
+];
 
 export class CodexInferenceProvider implements InferenceProvider {
   private readonly environment: Record<string, string> = {};
@@ -46,6 +52,8 @@ export class CodexInferenceProvider implements InferenceProvider {
           "exec", "--strict-config", "--model", this.options.model, "--json", "--color", "never", "--skip-git-repo-check",
           "--ignore-user-config", "--ignore-rules", "--ephemeral", "--sandbox", "read-only",
           ...disabledFeatures.flatMap(feature => ["-c", `features.${feature}=false`]),
+          "-c", "features.skip_host_skill_discovery=true",
+          "-c", "suppress_unstable_features_warning=true",
           "-c", 'approval_policy="never"', "-c", 'web_search="disabled"', "-c", "mcp_servers={}",
           "-c", "project_doc_max_bytes=0", "-c", "model_reasoning_effort=\"low\"",
           "-c", `developer_instructions=${JSON.stringify(systemPrompt)}`, "-",

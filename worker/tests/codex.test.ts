@@ -11,7 +11,7 @@ const success = [
 describe("constrained Codex adapter (fake CLI)", () => {
   it("disables execution, connectors, customization and persistence with isolated argv and stdin", async () => {
     const provider = new CodexInferenceProvider({ model: "fixture-model", environment: { PATH: "/usr/bin", HOME: "/fixture", RALLY_WORKER_TOKEN: "fixture-secret", SPECTRUM_PROJECT_SECRET: "fixture-secret", RALLY_AUTH0_ID_TOKEN: "fixture-secret" }, runner: async r => {
-      expect(r.args).toEqual(expect.arrayContaining(["exec", "--json", "--ignore-user-config", "--ignore-rules", "--ephemeral", "--sandbox", "read-only", "features.shell_tool=false", "features.apps=false", "features.plugins=false", "features.hooks=false", 'web_search="disabled"', 'approval_policy="never"']));
+      expect(r.args).toEqual(expect.arrayContaining(["exec", "--json", "--ignore-user-config", "--ignore-rules", "--ephemeral", "--sandbox", "read-only", "features.shell_tool=false", "features.apps=false", "features.plugins=false", "features.hooks=false", "features.in_app_local_automation=false", "features.in_app_browser=false", "features.auth_elicitation=false", "features.skill_mcp_dependency_install=false", "features.skip_host_skill_discovery=true", "suppress_unstable_features_warning=true", 'web_search="disabled"', 'approval_policy="never"']));
       expect(r.stdin).toBe(JSON.stringify(exampleContextPacket));
       expect(JSON.stringify(r.environment)).not.toContain("fixture-secret");
       return { exitCode: 0, stdout: success };

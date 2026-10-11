@@ -1,6 +1,6 @@
 # Rally
 
-**Status:** Real Photon HELP and onboarding STATUS replies passed with user-confirmed phone receipt. The merged messaging/Domain backend plus scoped AI queue is deployed to the existing `calm-jackal-984` development backend. This Mac's constrained Codex worker is online, with real synthetic inference and simulated full-pipeline acceptance tests. **Live event coordination remains pending: the backend has no events or enrolled memberships yet.** See [AI evidence and setup](docs/22-local-ai-evidence.md), [messaging evidence](docs/19-messaging-evidence.md) and [domain setup](docs/20-domain-evidence.md).
+**Status:** Real Photon HELP and onboarding STATUS replies passed with user-confirmed phone receipt. The merged messaging/Domain backend plus scoped AI queue is deployed to the existing `calm-jackal-984` development backend. This Mac's constrained Codex worker is online, with real synthetic inference and simulated full-pipeline acceptance tests. **Live event coordination remains pending: the backend has no events or enrolled memberships yet.** Phone-only draft/JOIN/CONFIRM/task/invitation setup passes simulated signed-DM tests; Auth0 is optional for the companion app and authenticated CLI. See [AI evidence and setup](docs/22-local-ai-evidence.md), [messaging evidence](docs/19-messaging-evidence.md) and [domain setup](docs/20-domain-evidence.md).
 
 
 **Primary experience:** iMessage via Photon Spectrum.  
@@ -103,7 +103,9 @@ The CLI creates `.env.local` with `CONVEX_DEPLOYMENT`, generates `convex/_genera
 
 For the worker, follow the [setup runbook](docs/12-deployment-and-operations.md#local-worker-implementation-and-setup). `npm run worker:configure` preserves or privately creates the matching development credential; `npm run worker` checks model login and backend authentication before polling. `npm run worker:status` prints sanitized heartbeat/queue aggregates using the operator's Convex CLI login. `npm run eval:fake` checks 20 scripted cases; `npm run eval:live` measures real inference on synthetic inputs without backend writes or sends. Real inference requires an explicitly selected available model. `.env.example` contains no usable credentials.
 
-For authenticated CLI event setup, `npm run auth:login` opens Rally's existing Auth0 Native application login, validates its returned ID token, and saves it in private `.env.local`. Append `http://127.0.0.1:8765/callback` to that application's Allowed Callback URLs, preserving the iOS callback. Then use `npm run domain:setup`; [the walkthrough](docs/20-domain-evidence.md#auth0-and-manual-event-setup) includes real phone proof and participant JOIN. An Auth0 dashboard login or Convex CLI login alone is not an app session.
+For P0, use [phone-only event setup](docs/12-deployment-and-operations.md#phone-only-event-setup): send `CREATE EVENT` to your provisioned Rally conversation for instructions, then create a draft, JOIN, and CONFIRM. Tasks, selected-contact invitations, and organizer approvals also work through deterministic iMessage commands. No Auth0 login or token copying is required.
+
+For optional authenticated CLI event setup, `npm run auth:login` opens Rally's existing Auth0 Native application login, validates its returned ID token, and saves it in private `.env.local`. Append `http://127.0.0.1:8765/callback` to that application's Allowed Callback URLs, preserving the iOS callback. Then use `npm run domain:setup`; [the walkthrough](docs/20-domain-evidence.md#auth0-and-manual-event-setup) includes real phone proof and participant JOIN. An Auth0 dashboard login or Convex CLI login alone is not an app session.
 
 Prompt 0 is complete only after local checks pass, the contract inventory is verified, and the first human-run development schema deployment succeeds. See [bootstrap contract and evidence](docs/18-bootstrap-contract.md) for decisions and current verification status.
 
@@ -111,9 +113,9 @@ Prompt 0 is complete only after local checks pass, the contract inventory is ver
 
 1. Join the existing Convex team and authenticate locally; confirm the development deployment used for Photon. Run `npm run messaging:configure` to check server configuration and create the server-only messaging key if absent.
 2. Deploy with `npx convex dev --once`; configure the native Photon webhook at that deployment's `/spectrum/webhook`. Verify a real inbound and outbound DM before building AI. See [the runbook](docs/19-messaging-evidence.md).
-3. Use the [authenticated domain setup runbook](docs/20-domain-evidence.md) to link the organizer's actual phone, create an event/tasks and prepare invitations. Every recipient must send their own JOIN; setup never invents consent.
+3. Use [phone-only event setup](docs/12-deployment-and-operations.md#phone-only-event-setup) to create a draft, JOIN and CONFIRM, add timed tasks, and prepare invitations. Every recipient must send their own JOIN; setup never invents consent. Authenticated app/CLI setup remains an alternative.
 4. Run `prompts/m1-messaging-domain.md`: verify genuine event JOIN/STATUS and a second participant's real YES committing one reassignment. The deterministic protocol already passes under `FakeMessagingAdapter`.
-5. The integrated development backend and this Mac's Codex worker are configured. Complete authenticated event setup and actual opted-in JOIN before testing free-text requests and participant acceptance. Check `npm run worker:status`; the Mac must remain awake.
+5. The integrated development backend and this Mac's Codex worker are configured. Complete phone event setup and actual opted-in JOIN before testing free-text requests and participant acceptance. Check `npm run worker:status`; the Mac must remain awake.
 6. Finish the existing SwiftUI companion's live integration; add weather only after core flow is robust.
 
 Do not copy pseudo-interfaces from these docs directly as if they are real SDK signatures; external APIs must be checked against pinned versions.

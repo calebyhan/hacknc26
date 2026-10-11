@@ -5,8 +5,7 @@ import { mutation, query } from "./_generated/server";
 import { eventDetail, eventSummary, weatherPolicy } from "./lib/validators";
 import { requireUser, requireMember, requireOrganizer } from "./lib/auth";
 import { audit, createEvent, detailFor, summarizeEvent } from "./lib/domain";
-import { hashCode, invitationCode } from "./lib/messaging";
-import { IdempotencyKeySchema } from "../packages/shared/domain";
+import { createOrganizerInvitation } from "./lib/invitations";
 
 /** Lane B: authenticate, then return only enrolled event memberships. */
 export const myEvents = query({
@@ -27,20 +26,7 @@ export const organizerInvitation = mutation({
   returns: v.object({ invitationId: v.id("invitations"), code: v.string(), expiresAt: v.number() }),
   handler: async (ctx, args): Promise<{ invitationId: Id<"invitations">; code: string; expiresAt: number }> => {
     const { user, membership } = await requireOrganizer(ctx, args.eventId);
-    const event = (await ctx.db.get(args.eventId))!;
-    if (!user.verifiedPhoneE164) throw new Error("PHONE_LINK_REQUIRED");
-    if (event.status === "completed" || event.status === "canceled") throw new Error("EVENT_CLOSED");
-    const key = IdempotencyKeySchema.parse(args.idempotencyKey);
-    const code = await invitationCode(JSON.stringify(["organizer-event-opt-in", user._id, args.eventId, key]));
-    const codeHash = await hashCode(code);
-    const prior = await ctx.db.query("invitations").withIndex("by_code_hash", q => q.eq("codeHash", codeHash)).unique();
-    if (prior) return { invitationId: prior._id, code, expiresAt: prior.expiresAt };
-    if (membership.consentAt !== undefined) throw new Error("ALREADY_ENROLLED");
-    const contactSelectionId = await ctx.db.insert("contactSelections", { ownerUserId: user._id, eventId: args.eventId, displayName: user.displayName, phoneE164: user.verifiedPhoneE164, selectedAt: Date.now() });
-    const expiresAt = Date.now() + 86400000;
-    const invitationId = await ctx.db.insert("invitations", { purpose: "event_invite", inviterUserId: user._id, targetUserId: user._id, contactSelectionId, eventId: args.eventId, codeHash, expiresAt, failedAttempts: 0, state: "pending" });
-    await ctx.db.patch(contactSelectionId, { invitationId });
-    return { invitationId, code, expiresAt };
+    return createOrganizerInvitation(ctx, user, membership, args.eventId, args.idempotencyKey);
   },
 });
 

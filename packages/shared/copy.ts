@@ -12,8 +12,8 @@ export const MessageCopyInputSchema = z.discriminatedUnion("type", [
 ]);
 export type MessageCopyInput = z.infer<typeof MessageCopyInputSchema>;
 
-export const onboardingCopy = "Hi, I'm Rally. To join an event, ask its organizer for an invitation and text JOIN <code>. Text HELP for commands.";
-export const helpCopy = "JOIN <code>, YES, NO, STATUS, STOP, PAUSE, RESUME, or LEAVE <event>. Only your own enrolled events are available.";
+export const onboardingCopy = "Hi, I'm Rally. To join an event, ask its organizer for an invitation and text JOIN <code>. To create one, text CREATE EVENT for setup instructions. Text HELP for commands.";
+export const helpCopy = "JOIN <code>, YES, NO, STATUS, STOP, PAUSE, RESUME, or LEAVE <event>. Text CREATE EVENT for phone setup instructions (including TASK, INVITE, and APPROVE). Only your own enrolled events are available.";
 export const controlCopy = {
   stopped: "You've stopped Rally messages. Text RESUME to receive messages again.",
   paused: "Rally messages are paused. Text RESUME to continue.",

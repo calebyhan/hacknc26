@@ -2,6 +2,7 @@ import { InboundEnvelopeSchema, parseCommand, type InboundEnvelope } from "../..
 import { controlCopy, helpCopy, invalidJoinCopy, onboardingCopy } from "../../packages/shared/copy";
 import type { Doc } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
+import { parsePhoneSetupCommand, PhoneSetupReceiptSchema, phoneSetupErrorCopy, phoneSetupUsageCopy } from "../../packages/shared/phoneSetup";
 
 const encoder = new TextEncoder();
 function secretBytes(): Uint8Array<ArrayBuffer> {
@@ -21,6 +22,10 @@ export async function hashCode(code: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", encoder.encode(code.trim().toUpperCase()));
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
+export async function contentDigest(content: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", encoder.encode(content));
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+}
 export async function sealEnvelope(envelope: InboundEnvelope, binding: string): Promise<string> {
   const key = await crypto.subtle.importKey("raw", secretBytes(), "AES-GCM", false, ["encrypt"]);
   const iv = crypto.getRandomValues(new Uint8Array(12)); // HTTP action only.
@@ -39,15 +44,23 @@ export async function senderFor(ctx: QueryCtx | MutationCtx, message: Doc<"inbou
   return ctx.db.query("users").withIndex("by_phone", (q) => q.eq("verifiedPhoneE164", message.senderPhone)).unique();
 }
 
-/** The direct-reply exemption permits fixed onboarding/help/control copy only. */
+/** Fixed controls or the exact authorized phone setup receipt; no broad reply bypass. */
 export async function canSend(ctx: QueryCtx | MutationCtx, row: Pick<Doc<"outboundMessages">, "recipientUserId" | "eventId" | "directReplyToMessageId" | "content">): Promise<boolean> {
   const user = await ctx.db.get(row.recipientUserId);
   if (!user?.verifiedPhoneE164) return false;
   const inbound = row.directReplyToMessageId ? await ctx.db.get(row.directReplyToMessageId) : null;
-  const ownReply = inbound?.senderPhone === user.verifiedPhoneE164;
+  const ownReply = inbound?.provider === "spectrum" && inbound.senderPhone === user.verifiedPhoneE164;
   if (ownReply && !row.eventId) {
     const text = (await openEnvelope(inbound!)).text;
     const command = parseCommand(text);
+    if (user.messagingState === "active" && parsePhoneSetupCommand(text)) {
+      if (row.content === phoneSetupUsageCopy || row.content === phoneSetupErrorCopy) return true;
+      const receipt = await ctx.db.query("auditEvents").withIndex("by_source", q => q.eq("sourceId", `phone-reply:${inbound!._id}`)).unique();
+      if (receipt?.actorId === user._id && receipt.action === "phone_setup_reply" && receipt.at > Date.now() - 86_400_000) {
+        const parsed = PhoneSetupReceiptSchema.safeParse(JSON.parse(receipt.newStateRef ?? "null"));
+        if (parsed.success && parsed.data.contentHash === await contentDigest(row.content)) return true;
+      }
+    }
     if (row.content === onboardingCopy) return true;
     if (row.content === helpCopy && command.type === "HELP") return true;
     if (row.content === invalidJoinCopy && command.type === "JOIN") return true;

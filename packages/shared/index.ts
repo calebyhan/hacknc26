@@ -10,3 +10,4 @@ export * from "./planner";
 export * from "./assignment";
 export * from "./context";
 export * from "./copy";
+export * from "./phoneSetup";

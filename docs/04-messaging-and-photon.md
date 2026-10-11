@@ -20,7 +20,7 @@ Because a Pro shared line may assign different numbers to different participants
 
 ## Sender enrollment and opt-in
 
-1. Organizer picks specific contacts in-app (or, for P0 without the app, via the labeled bootstrap path in ADR-013), sees a review/consent screen.
+1. Organizer picks specific contacts in-app (or, for P0 without the app, via explicit phone setup commands or the labeled bootstrap path in ADR-013), sees a review/consent screen.
 2. Rally creates short-lived invitation references but does **not** automatically blast numbers. Share invite instruction through a user-controlled method or an authorized provider flow.
 3. Participant initiates an inbound message to the agent containing `JOIN <code>` from their invitation. The code is **required**: it links the sending phone to the selected contact and proves phone control. A message without a valid code gets the unknown-sender onboarding reply (A6) and no event data.
 4. Upon successful verification, mark the invitation `redeemed`, set membership `enrolled`, and record `consentAt` / `consentSourceMessageId` on that membership (consent is event-scoped).
@@ -38,8 +38,10 @@ Canonical list, parsed case-insensitively before context resolution or any model
 | `STATUS` | Enrolled member | Summary of their events/commitments/pending proposals, scoped to their membership (R9). |
 | `HELP` | Anyone | Command list; no event data for unknown senders. |
 | `STOP` | Anyone known | `users.messagingState=stopped`; cancel their queued optional outbound and their pending proposals; one acknowledgement. |
-| `PAUSE` / `RESUME` | Enrolled member | `messagingState` → `paused` / `active`. |
+| `PAUSE` / `RESUME` | Verified inbound sender | `messagingState` → `paused` / `active`. |
 | `LEAVE <event>` | Enrolled member | Membership → `left`; cancel pending proposals targeting them in that event; organizer notified. |
+
+Additive deterministic setup commands use a separate shared schema, preserving the frozen everyday command contract: `CREATE EVENT <title> | <ISO instant> | <timezone> | <optional location>`, `CONFIRM <event ID> <version>`, `TASK <event> | <title> | <start ISO> | <end ISO>`, `INVITE <event> | <name> | <E.164 phone>`, and `APPROVE <proposal ID>`. Only first-draft creation and fixed syntax help are available before JOIN. The remaining writes require scoped organizer role and genuine event consent. Read the [phone setup runbook](12-deployment-and-operations.md#phone-only-event-setup). A phone draft reply is an exact audited response to its initiating message; it does not permit general unsolicited sends.
 
 Equivocal replies (“maybe”, “probably”) are **not** `YES`; leave pending and ask for YES or NO.
 

@@ -24,7 +24,7 @@
 | `19-messaging-evidence.md` | Lane A local evidence, SDK differences, cloud setup and live-test blockers | Configuring or reviewing messaging |
 | `20-domain-evidence.md` | Lane B acceptance evidence, Auth0/phone setup, additive contracts and M1 handoff | Reviewing domain behavior or preparing real event enrollment |
 | `21-messaging-domain-integration.md` | Signed full-pipeline A+B simulation tests, cancellation/routing fixes and verification | Reviewing messaging/domain integration |
-| `22-local-ai-evidence.md` | Local Claude/Codex implementation, real synthetic evaluation, development deployment/heartbeat and Auth0 CLI setup | Operating the worker or preparing the live AI test |
+| `22-local-ai-evidence.md` | Local Claude/Codex implementation, real synthetic evaluation, development deployment/heartbeat, phone-only setup and optional Auth0 CLI | Operating the worker or preparing the live AI test |
 | `../prompts/` | Kickoff prompts per lane and checkpoint | Starting a lane or checkpoint session |
 
 ## How to use

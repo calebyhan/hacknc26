@@ -11,7 +11,7 @@ import { deliverWithAdapter } from "../../convex/lib/messagingDelivery";
 
 
 const modules = import.meta.glob(["../../convex/**/*.ts", "!../../convex/**/*.test.ts"]);
-export async function harness() {
+export async function messagingHarness() {
   const fake = new FakeMessagingAdapter();
   const t = convexTest(schema, { ...modules, "../../convex/spectrumSender.ts": async () => ({
     deliver: internalAction({ args: { outboundMessageId: v.id("outboundMessages") }, returns: v.null(),
@@ -30,7 +30,7 @@ export async function harness() {
     }
     throw new Error("Due scheduler jobs did not finish");
   }
-  async function receive(phone: string, text: string, providerMessageId = crypto.randomUUID(), route = true) {
+  async function receive(phone: string, text: string, providerMessageId: string = crypto.randomUUID(), route = true) {
     const payload = { event: "message", message: { id: providerMessageId, platform: "iMessage", direction: "inbound", sender: { id: phone }, space: { id: `any;-;${phone}`, type: "dm", phone: "shared" }, content: { type: "text", text } } };
     const body = JSON.stringify(payload), timestamp = Math.floor(Date.now() / 1000).toString();
     const key = await crypto.subtle.importKey("raw", new TextEncoder().encode("integration-webhook-secret"), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
@@ -41,6 +41,12 @@ export async function harness() {
     const message = await t.run(ctx => ctx.db.query("inboundMessages").withIndex("by_provider_message_id", q => q.eq("provider", "spectrum").eq("providerMessageId", providerMessageId)).unique());
     return message!._id;
   }
+  const outbox = () => t.run(ctx => ctx.db.query("outboundMessages").collect());
+  return { t, phones, fake, drain, receive, outbox };
+}
+
+export async function harness() {
+  const { t, phones, fake, drain, receive, outbox } = await messagingHarness();
   const app = t.withIdentity({ subject: "simulation|integration-organizer" });
   const alex = await app.mutation(api.accounts.register, { displayName: "Alex" });
   const phoneProof = await app.mutation(api.accounts.beginPhoneLink, { phoneE164: phones.alex, idempotencyKey: "phone" });
@@ -70,7 +76,6 @@ export async function harness() {
     if (dispatch) await drain(); return proposalId;
   }
   await offer(ids.maya, "assignment"); await receive(phones.maya, "YES");
-  const outbox = () => t.run(ctx => ctx.db.query("outboundMessages").collect());
   const active = () => t.run(async ctx => (await ctx.db.query("commitments").withIndex("by_task", q => q.eq("taskId", ids.task)).collect()).filter(c => c.state === "active"));
   return { t, app, ids, phones, receive, drain, offer, fake, outbox, active };
 }
