@@ -6,6 +6,7 @@ struct TaskCreateView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var session: AppSession
     @State private var title = ""
+    @State private var capacity = 1
     @State private var windowStart: Date
     @State private var windowEnd: Date
     @State private var currentEvent: EventSummary?
@@ -53,12 +54,14 @@ struct TaskCreateView: View {
                     TextField("What needs doing?", text: $title).accessibilityIdentifier("taskTitle")
                     DatePicker("Starts", selection: $windowStart).accessibilityIdentifier("taskStart")
                     DatePicker("Ends", selection: $windowEnd).accessibilityIdentifier("taskEnd")
+                    Stepper("People needed: \(capacity)", value: $capacity, in: 1...20)
+                        .accessibilityIdentifier("taskCapacity")
                     if !validWindow { Text("The task must end after it starts.").foregroundStyle(.red) }
                 }
                 .environment(\.timeZone, TimeZone(identifier: currentEvent?.timezone ?? event.timezone) ?? .gmt)
                 .disabled(saving || submittedInput != nil || !canWrite)
                 Section {
-                    Text("This creates an open task for one person. The participant must accept through iMessage before it is confirmed.")
+                    Text("Each person accepts through iMessage. Rally keeps track of how many places are filled.")
                         .foregroundStyle(.secondary)
                 }
                 if let error { Section { ErrorNotice(message: error) } }
@@ -131,7 +134,7 @@ struct TaskCreateView: View {
             let input = submittedInput ?? CreateTaskInput(
                 eventId: currentEvent.id, title: title.trimmingCharacters(in: .whitespacesAndNewlines),
                 windowStart: window.start, windowEnd: window.end,
-                capacity: 1, expectedEventVersion: currentEvent.version, idempotencyKey: idempotencyKey
+                capacity: capacity, expectedEventVersion: currentEvent.version, idempotencyKey: idempotencyKey
             )
             submittedInput = input
             _ = try await client.createTask(input)

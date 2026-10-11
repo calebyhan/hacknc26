@@ -15,7 +15,7 @@ describe("signed DM -> leased worker decision -> actual Domain (simulated provid
   async function request(h: Awaited<ReturnType<typeof harness>>, text: string, actions: AgentAction[], phone = h.phones.alex) {
     // Dispose of older manual-setup requests whose task snapshots are stale.
     await h.receive(phone, text);
-    const job = (await h.t.mutation(api.reasoningJobs.claim, credentials))!;
+    const job = (await h.t.mutation(api.reasoningJobs.claim, { ...credentials, contextProtocol: 2 }))!;
     expect(job).not.toBeNull();
     const args = { ...credentials, jobId: job.jobId, leaseToken: job.leaseToken, decisionJson: JSON.stringify({ schemaVersion: 1, eventCandidateId: h.ids.event, confidenceClass: "clear", needsClarification: false, clarificationQuestion: null, actions, responseStyle: "concise", reasonCodes: [] }) };
     await h.t.mutation(api.reasoningJobs.complete, args); await h.drain();

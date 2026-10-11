@@ -18,7 +18,7 @@ try {
   });
   const credentials = { workerToken: config.workerToken, workerId: randomUUID() };
   const backend: QueueBackend = {
-    claim: () => client.mutation(api.reasoningJobs.claim, credentials),
+    claim: () => client.mutation(api.reasoningJobs.claim, { ...credentials, contextProtocol: 2 }),
     complete: async (args) => { await client.mutation(api.reasoningJobs.complete, { ...credentials, ...args, jobId: args.jobId as Id<"reasoningJobs"> }); },
     heartbeat: async (lastError) => { await client.mutation(api.reasoningJobs.heartbeat, { ...credentials, modelId: config.model, ...(lastError ? { lastError } : {}) }); },
   };

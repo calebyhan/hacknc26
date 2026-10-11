@@ -3,10 +3,25 @@ import type { QueryCtx } from "../_generated/server";
 import { type AppActivityItem, type AppProgress, type AppRoute } from "../../packages/shared/appStatus";
 import { PhoneE164Schema } from "../../packages/shared/primitives";
 import { parseCommand } from "../../packages/shared/commands";
+import { reviewedCreateConfirmation } from "../../packages/shared/phoneConversation";
 import { openEnvelope } from "./messaging";
 
 export const ROUTE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const ACTIVITY_LIMIT = 30;
+
+/** Only a caller-owned app phone challenge may expose this bot address before
+ * phone proof. It grants no identity, membership, consent, or messaging rights. */
+export async function phoneChallengeRoute(ctx: QueryCtx, phone: string, expiresAt: number): Promise<AppRoute> {
+  const record = await ctx.db.query("messagingRoutes").withIndex("by_participant_phone", q => q.eq("participantPhoneE164", phone)).unique();
+  const provision = record?.provisioning;
+  const now = Date.now();
+  if (record?.revokedAt !== undefined || !provision || !validTimestamp(provision.verifiedAt) || provision.verifiedAt > now
+    || !validTimestamp(provision.expiresAt) || provision.expiresAt <= now || expiresAt <= now
+    || provision.expiresAt <= provision.verifiedAt || provision.expiresAt > provision.verifiedAt + ROUTE_MAX_AGE_MS
+    || !PhoneE164Schema.safeParse(provision.destination).success || provision.destination === phone) return { status: "unavailable" };
+  const route = await resolvePhoneRoute(ctx, phone);
+  return route.status === "available" ? { ...route, expiresAt: Math.min(expiresAt, route.expiresAt) } : route;
+}
 
 export async function eventProgress(ctx: QueryCtx, eventId: Id<"events">): Promise<AppProgress> {
   const tasks = await ctx.db.query("tasks").withIndex("by_event", q => q.eq("eventId", eventId)).collect();
@@ -24,7 +39,14 @@ export async function messagingStatus(ctx: QueryCtx, user: Doc<"users">, members
     && membership.consentAt >= 0 && membership.consentAt <= Date.now() && membership.consentSourceMessageId) {
     const message = await ctx.db.get(membership.consentSourceMessageId);
     if (message?.provider === "spectrum" && message.senderPhone === user.verifiedPhoneE164) {
-      try { consentRecorded = parseCommand((await openEnvelope(message)).text).type === "JOIN"; }
+      try {
+        const text = (await openEnvelope(message)).text;
+        consentRecorded = parseCommand(text).type === "JOIN";
+        if (!consentRecorded && reviewedCreateConfirmation(text)) {
+          const receipt = await ctx.db.query("auditEvents").withIndex("by_source", q => q.eq("sourceId", `phone-consent:${message._id}`)).unique();
+          consentRecorded = receipt?.action === "guided_event_consent" && receipt.actorId === user._id && receipt.eventId === membership.eventId;
+        }
+      }
       catch { /* Missing or invalid evidence is never displayed as consent. */ }
     }
   }
@@ -65,10 +87,14 @@ export async function eventActivity(ctx: QueryCtx, eventId: Id<"events">, userId
  * Current verified caller only. The provider's shared sentinel and the incoming
  * sender/space ID are not the Rally destination. Component routing metadata is
  * sticky, so consult the newest signed/encrypted observation instead. Missing,
- * invalid, shared-mode or expired evidence never revives an older line.
+ * invalid or expired evidence never revives an older line. The shared sentinel
+ * alone supplies no destination; a current trusted allocation may supply it.
  */
 export async function currentRoute(ctx: QueryCtx, user: Doc<"users">): Promise<AppRoute> {
-  const phone = user.verifiedPhoneE164;
+  return resolvePhoneRoute(ctx, user.verifiedPhoneE164);
+}
+
+async function resolvePhoneRoute(ctx: QueryCtx, phone: string | undefined): Promise<AppRoute> {
   if (!phone || !PhoneE164Schema.safeParse(phone).success) return { status: "unavailable" };
   const now = Date.now();
   const record = await ctx.db.query("messagingRoutes").withIndex("by_participant_phone", q => q.eq("participantPhoneE164", phone)).unique();
@@ -85,6 +111,19 @@ export async function currentRoute(ctx: QueryCtx, user: Doc<"users">): Promise<A
     || latest.receivedAt + ROUTE_MAX_AGE_MS <= now) return { status: "unavailable" };
   try {
     const { linePhone } = await openEnvelope(latest);
+    if (linePhone === "shared" && provisioning) {
+      // "shared" is an SDK sentinel, not evidence that Photon changed the
+      // operator-verified allocation. Retain it only while all later bounded
+      // observations agree; a rotated/invalid line must never be resurrected.
+      const observations = await ctx.db.query("inboundMessages").withIndex("by_sender_received_at", q => q.eq("senderPhone", phone).gt("receivedAt", provisioning.verifiedAt)).order("desc").take(31);
+      if (observations.length >= 31) return { status: "unavailable" };
+      for (const observation of observations) {
+        if (observation.provider !== "spectrum" || observation.receivedAt > now) return { status: "unavailable" };
+        const observedLine = (await openEnvelope(observation)).linePhone;
+        if (observedLine !== "shared" && observedLine !== provisioning.destination) return { status: "unavailable" };
+      }
+      return { status: "available", destination: provisioning.destination, expiresAt: provisioning.expiresAt };
+    }
     if (!linePhone || !PhoneE164Schema.safeParse(linePhone).success || linePhone === phone) return { status: "unavailable" };
     return { status: "available", destination: linePhone, expiresAt: latest.receivedAt + ROUTE_MAX_AGE_MS };
   } catch { return { status: "unavailable" }; }

@@ -151,6 +151,15 @@ describe("authoritative current-user contact routing (offline encrypted/provisio
     vi.advanceTimersByTime(1); await provision({ destination: "+15550000097" });
     expect(await app.query(api.appStatus.route, {})).toMatchObject({ destination: "+15550000097" });
   });
+  it("keeps an authoritative allocation after shared-only JOIN traffic, but never revives a rotated line", async () => {
+    const { app, inbound, provision } = await fixture();
+    await provision();
+    vi.advanceTimersByTime(1); await inbound("shared");
+    expect(await app.query(api.appStatus.route, {})).toMatchObject({ destination: LINE });
+    vi.advanceTimersByTime(1); await inbound("+15550000098");
+    vi.advanceTimersByTime(1); await inbound("shared");
+    expect(await app.query(api.appStatus.route, {})).toEqual({ status: "unavailable" });
+  });
 
   it("rejects invalid phones, self destinations, bad TTL, future/stale verification and conflicting replay", async () => {
     const { provision } = await fixture();

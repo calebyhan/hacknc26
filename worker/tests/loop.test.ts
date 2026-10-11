@@ -38,21 +38,37 @@ describe("single-job worker loop (simulation)", () => {
     expect(await processOneJob(queue, provider)).toBe("error");
     expect(provider.calls).toHaveLength(0);
   });
-  it("backs off empty polling to 10, 20 and 30 seconds and stops on shutdown", async () => {
+  it("picks up a job within two seconds even after a minute of idle polling", async () => {
     vi.useFakeTimers();
-    const queue = backend(); queue.claim = vi.fn(async () => null);
-    const provider = new FakeInferenceProvider();
+    const queue = backend();
+    let available = false;
+    queue.claim = vi.fn(async () => available ? { jobId: "fixture-job", leaseToken: "fixture-lease", leaseUntil: Date.now() + 45_000, packetJson: JSON.stringify(exampleContextPacket) } : null);
+    const provider = new FakeInferenceProvider({ [exampleContextPacket.incomingText]: exampleAgentDecision });
     const controller = new AbortController();
     const running = runWorker(queue, provider, { signal: controller.signal });
     try {
       await vi.advanceTimersByTimeAsync(0);
       expect(queue.claim).toHaveBeenCalledTimes(1);
-      await vi.advanceTimersByTimeAsync(10_000);
+      await vi.advanceTimersByTimeAsync(60_001);
+      expect(queue.claim).toHaveBeenCalledTimes(31);
+      expect(provider.calls).toHaveLength(0);
+      available = true;
+      await vi.advanceTimersByTimeAsync(1_999);
+      expect(provider.calls).toHaveLength(1);
+      expect(queue.complete).toHaveBeenCalledTimes(1);
+    } finally { controller.abort(); await running; vi.useRealTimers(); }
+  });
+  it("waits thirty seconds after backend failure instead of retrying rapidly", async () => {
+    vi.useFakeTimers();
+    const queue = backend(); queue.claim = vi.fn(async () => { throw new Error("fixture outage"); });
+    const controller = new AbortController();
+    const provider = new FakeInferenceProvider();
+    const running = runWorker(queue, provider, { signal: controller.signal });
+    try {
+      await vi.advanceTimersByTimeAsync(29_999);
+      expect(queue.claim).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
       expect(queue.claim).toHaveBeenCalledTimes(2);
-      await vi.advanceTimersByTimeAsync(20_000);
-      expect(queue.claim).toHaveBeenCalledTimes(3);
-      await vi.advanceTimersByTimeAsync(30_000);
-      expect(queue.claim).toHaveBeenCalledTimes(4);
       expect(provider.calls).toHaveLength(0);
     } finally { controller.abort(); await running; vi.useRealTimers(); }
   });

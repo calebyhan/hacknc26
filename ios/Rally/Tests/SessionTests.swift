@@ -4,6 +4,88 @@ import XCTest
 
 @MainActor
 final class SessionTests: XCTestCase {
+    func testLaunchRestoresCachedLoginOnceWithoutRegisteringOrOpeningBrowser() async {
+        let client = SessionFixtureClient()
+        client.accountInitialStatus = AccountStatus(userId: "canonical", displayName: "Alex", phoneLinked: true, messagingState: .active)
+        let auth = SessionFixtureAuthentication(client: client)
+        let session = AppSession(authentication: auth)
+        await session.restoreSession()
+        await session.restoreSession()
+        XCTAssertEqual(auth.restoreCount, 1)
+        XCTAssertEqual(auth.loginCount, 0)
+        XCTAssertTrue(client.registrationNames.isEmpty)
+        XCTAssertNotNil(session.client)
+        XCTAssertEqual(session.accountUserID, "canonical")
+        XCTAssertTrue(session.phoneVerifiedForSession)
+        await session.signOut()
+        await session.restoreSession()
+        XCTAssertNil(session.client)
+        XCTAssertEqual(auth.restoreCount, 1)
+    }
+
+    func testMissingCacheLeavesOrdinarySignInAvailable() async {
+        let auth = SessionFixtureAuthentication(client: SessionFixtureClient())
+        auth.restoreOperation = { false }
+        let session = AppSession(authentication: auth)
+        await session.restoreSession()
+        XCTAssertNil(session.client)
+        XCTAssertNil(session.error)
+        XCTAssertFalse(session.isSigningIn)
+        await session.signIn(displayName: "Alex")
+        XCTAssertNotNil(session.client)
+        XCTAssertEqual(auth.loginCount, 1)
+    }
+
+    func testRestorationWaitsForAuthorizedAccountAndCanRetryReadWithoutLogin() async {
+        let client = SessionFixtureClient()
+        client.accountInitialStatus = nil
+        let subscribed = expectation(description: "Restored account read started")
+        client.onAccountSubscribe = { subscribed.fulfill() }
+        let auth = SessionFixtureAuthentication(client: client)
+        let session = AppSession(authentication: auth)
+        let restore = Task { await session.restoreSession() }
+        await fulfillment(of: [subscribed], timeout: 2)
+        XCTAssertNil(session.client)
+        XCTAssertTrue(session.isRestoring)
+        client.failAccount(RallyClientError.unavailable("Offline fixture"))
+        await restore.value
+        XCTAssertTrue(session.canRetryRegistration)
+        XCTAssertEqual(auth.clearCount, 0)
+        client.onAccountSubscribe = nil
+        client.accountInitialStatus = AccountStatus(userId: "canonical", displayName: "Alex", phoneLinked: true, messagingState: .active)
+        await session.retryRegistration()
+        XCTAssertNotNil(session.client)
+        XCTAssertTrue(client.registrationNames.isEmpty)
+        XCTAssertEqual(auth.loginCount, 0)
+        await session.signOut()
+    }
+
+    func testSignOutDuringRestoreRejectsLateCredentials() async {
+        let auth = SessionFixtureAuthentication(client: SessionFixtureClient())
+        let gate = SessionTestGate<Bool>()
+        auth.restoreOperation = { await gate.wait() }
+        let session = AppSession(authentication: auth)
+        let restore = Task { await session.restoreSession() }
+        await fulfillment(of: [gate.entered], timeout: 2)
+        await session.signOut()
+        gate.resume(true)
+        await restore.value
+        XCTAssertNil(session.client)
+        XCTAssertFalse(session.isSigningIn)
+        XCTAssertEqual(auth.logoutCount, 2)
+    }
+
+    func testCacheNetworkFailureDoesNotDeleteSavedCredentials() async {
+        let auth = SessionFixtureAuthentication(client: SessionFixtureClient())
+        auth.restoreOperation = { throw RallyClientError.unavailable("Offline fixture") }
+        let session = AppSession(authentication: auth)
+        await session.restoreSession()
+        XCTAssertNil(session.client)
+        XCTAssertNotNil(session.error)
+        XCTAssertEqual(auth.clearCount, 0)
+        XCTAssertEqual(auth.logoutCount, 0)
+    }
+
     func testRegistrationPrecedesProtectedClientAndPhoneProofGatesCreation() async {
         let client = SessionFixtureClient()
         let gate = SessionTestGate<String>()
@@ -332,12 +414,15 @@ final class SessionFixtureAuthentication: SessionAuthenticating {
     var connected: AnyPublisher<Bool, Never> { connections.eraseToAnyPublisher() }
     var unauthenticated: AnyPublisher<Bool, Never> { authChanges.eraseToAnyPublisher() }
     var loginOperation: (() async throws -> Void)?
+    var restoreOperation: (() async throws -> Bool)?
     var logoutOperation: (() async -> Bool)?
     private(set) var loginCount = 0
+    private(set) var restoreCount = 0
     private(set) var logoutCount = 0
     private(set) var clearCount = 0
     init(client: any RallyClient) { rallyClient = client }
     func login() async throws { loginCount += 1; try await loginOperation?() }
+    func restore() async throws -> Bool { restoreCount += 1; return try await restoreOperation?() ?? true }
     func logout() async -> Bool { logoutCount += 1; return await logoutOperation?() ?? true }
     func clearLocalCredentials() -> Bool { clearCount += 1; return true }
 }

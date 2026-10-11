@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { IdentifierSchema, PhoneE164Schema, TextReferenceSchema, VersionSchema } from "./primitives";
+import { normalizeSelectedPhone } from "./phoneConversation";
 
 // Explicit offsets avoid interpreting an organizer's wall-clock time in the
 // worker's timezone. The named zone is retained for display and event context.
@@ -10,7 +11,7 @@ const TimezoneSchema = TextReferenceSchema.refine(value => {
 export const PhoneSetupCommandSchema = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("CREATE_EVENT"), title: TextReferenceSchema, startsAt: InstantSchema, timezone: TimezoneSchema, location: TextReferenceSchema.optional() }),
   z.strictObject({ type: z.literal("CONFIRM_EVENT"), eventId: IdentifierSchema, expectedVersion: VersionSchema }),
-  z.strictObject({ type: z.literal("CREATE_TASK"), eventRef: TextReferenceSchema, title: TextReferenceSchema, windowStart: InstantSchema, windowEnd: InstantSchema }).refine(input => input.windowEnd > input.windowStart, "Invalid window"),
+  z.strictObject({ type: z.literal("CREATE_TASK"), eventRef: TextReferenceSchema, title: TextReferenceSchema, windowStart: InstantSchema, windowEnd: InstantSchema, capacity: z.number().int().min(1).max(20).optional() }).refine(input => input.windowEnd > input.windowStart, "Invalid window"),
   z.strictObject({ type: z.literal("INVITE_CONTACT"), eventRef: TextReferenceSchema, displayName: TextReferenceSchema, phoneE164: PhoneE164Schema }),
   z.strictObject({ type: z.literal("APPROVE_PROPOSAL"), proposalId: IdentifierSchema }),
   z.strictObject({ type: z.literal("INVALID") }),
@@ -28,8 +29,8 @@ export function parsePhoneSetupCommand(text: string): PhoneSetupCommand | null {
   const fields = rest.split("|").map(field => field.trim());
   let raw: unknown;
   if (command === "CREATE EVENT" && (fields.length === 3 || fields.length === 4)) raw = { type: "CREATE_EVENT", title: fields[0], startsAt: fields[1], timezone: fields[2], ...(fields.length === 4 ? { location: fields[3] } : {}) };
-  if (command === "TASK" && fields.length === 4) raw = { type: "CREATE_TASK", eventRef: fields[0], title: fields[1], windowStart: fields[2], windowEnd: fields[3] };
-  if (command === "INVITE" && fields.length === 3) raw = { type: "INVITE_CONTACT", eventRef: fields[0], displayName: fields[1], phoneE164: fields[2] };
+  if (command === "TASK" && (fields.length === 4 || fields.length === 5)) raw = { type: "CREATE_TASK", eventRef: fields[0], title: fields[1], windowStart: fields[2], windowEnd: fields[3], ...(fields.length === 5 ? { capacity: Number(fields[4]) } : {}) };
+  if (command === "INVITE" && fields.length === 3) raw = { type: "INVITE_CONTACT", eventRef: fields[0], displayName: fields[1], phoneE164: normalizeSelectedPhone(fields[2]!).phone };
   const confirm = command === "CONFIRM" ? /^(\S+) ([1-9]\d*)$/u.exec(rest) : null;
   if (confirm) raw = { type: "CONFIRM_EVENT", eventId: confirm[1], expectedVersion: Number(confirm[2]) };
   if (command === "APPROVE" && /^\S+$/u.test(rest)) raw = { type: "APPROVE_PROPOSAL", proposalId: rest };

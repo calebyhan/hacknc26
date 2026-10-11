@@ -4,6 +4,84 @@ Date: October 10, 2026 (America/New_York). Goal: make the integrated coordinatio
 
 **Local rehearsal is ready. The live M1/M2 gates, and therefore the final M3 release gate, remain open.** Simulated signed messages do not establish a person's actual consent. Real model evaluation on synthetic inputs does not establish live Photon coordination or app/device acceptance.
 
+## October 11 product review and follow-up
+
+The read-only review of the latest **Rally Final 1012** run found real signed JOINs, organizer confirmation, task creation, two accepted assignments, organizer-approved reassignment, and release of the previous participant. The reviewed snapshot contained 19 inbound messages, 26 provider-accepted outbound messages, four completed reasoning jobs and no failed/unknown deliveries. Provider acceptance is not a phone delivery receipt. The speakers offer was still pending at the review snapshot; that snapshot is not current event state.
+
+The principal defect was task ambiguity: a participant held setup while their most recent pending offer concerned speakers, and “cover for me instead” silently selected setup. Other problems were formatted phone rejection, opaque setup commands, STATUS counts without people, duplicated approval guidance, and model requests waiting roughly 21–27 seconds for worker pickup. Existing consent/organizer/participant checks did protect the actual assignment changes, but they did not make the interaction clear.
+
+The follow-up implements and tests:
+
+- Guided `create an event`, `invite someone` and `add a task`, local-time previews, formatted country-code phones, sender-bound `join <event name>` and friendly organizer approvals. Expert commands remain available.
+- Team staffing in phone and iOS setup; STATUS lists confirmed people, filled/required places, pending people and deadlines. Explicit YES/NO task references resolve multiple offers without closing the others.
+- Participant overlap warnings followed by separate signed confirmation. Repeating YES does not silently accept overlapping obligations. Compatible team offers survive another teammate accepting; final-place races remain atomic.
+- Deterministic task clarification before model execution, a bounded signed follow-up choice, and a backend check that the model uses that exact task. Structured context now includes task windows, capacity, pending offers and recent focus. Synthetic evaluation checks exact task/person IDs for the added scenarios.
+- Originator progress receipts, a two-second idle poll interval in the worker source, and silent iOS session restoration through the installed Auth0/Convex SDK. Polling changes require reloading the running worker; source tests alone are not runtime latency evidence.
+
+These additions are a tested implementation, not a new real-phone rehearsal. The data-model/consent decision is [ADR-023](14-decisions-and-open-questions.md#adr-023--conversational-setup-team-staffing-and-explicit-overlap-consent). The sections below retain the earlier preparation evidence and should be read with this newer review.
+
+Verification on the integrated October 11 source:
+
+- `npm run check`: **483 passed, one optional test skipped**, all strict TypeScript checks passed; log `/tmp/rally-product-final-acceptance.log`. `npm run contracts:list` still reports **46 functions**. `git diff --check` passed.
+- `npm run demo:rehearse`: both simulated full-pipeline/privacy scenarios passed. `npm run eval:fake`: **25/25** scripted cases.
+- `npm run eval:live`: **24/25** on synthetic inputs, p50 **4,221 ms**, p95 **7,267 ms**. Both new exact task/person cases passed. Availability case 15 was rejected as `INVALID_DECISION`; no domain execution occurred. Its separate unchanged-model diagnostic passed, but the initial error's raw output was not retained, so its precise cause remains unknown. Preserve both the [full sweep](../tests/eval/results/2026-10-11-product-live.json) and [separate diagnostic](../tests/eval/results/2026-10-11-case15-diagnostic.json); this is not a 25/25 sweep.
+- iOS: **81 unit tests and eight UI tests passed** after session-restoration changes. The subsequent focused task-creation UI test passed with three people requested and `0 of 3 people confirmed` displayed (`/tmp/rally-team-task-ui-fixed.xcresult`). Its first run failed due to the test using the wrong accessibility identifier for the stepper; the corrected test passed. Signed device build, installation and launch succeeded on the connected iPhone. Actual Keychain restoration/refresh and ST-15 still require device observation.
+- At **00:32:53 EDT**, `convex dev --once --typecheck enable --tail-logs disable` deployed to verified development target `calm-jackal-984`. The existing local dev watcher was paused during final integration and resumed afterward. The 00:33 health sample showed the existing worker online with no reported error, six completed jobs and none queued/claimed/failed/expired. No worker was duplicated or restarted, so the new polling interval is not claimed as active runtime behavior.
+
+Worker protocol follow-up after the 00:33 health sample: an online heartbeat did not prove that the existing worker could parse the new packets. The old worker's strict schema rejected the added context fields before inference, submitted `{}` to completion and would fail the job as `INVALID_DECISION`. A read-only reproduction using the actual worker/schema source from `9212db4` confirmed zero inference calls for a rich packet.
+
+The compatibility fix adds optional `contextProtocol: 2` to `reasoningJobs.claim`. Updated workers request rich packets; callers omitting the argument receive the exact legacy shape. Legacy clarification packets expose only the verified selected task and include bounded, labeled server facts while preserving participant text. Backend consent, task selection and version checks remain authoritative; heartbeat/completion signatures are unchanged. See the [wire contract](18-bootstrap-contract.md). Final `npm run check` passed **488 tests with one optional test skipped**, including all strict TypeScript checks. In the separate synthetic compatibility check, the actual old worker code accepted the legacy projection, called a fake provider exactly once and completed with a validated assignment proposal. These checks made no live inference or participant-message calls and do not establish deployment or worker restart. The old process still needs reloading to adopt the faster polling interval.
+
+All new source is left in the working tree alongside the preserved pre-existing phone-link fixes. No release tag or production deployment was created.
+
+Runtime follow-up: the compatibility fix deployed successfully to development target `calm-jackal-984` at **00:38:42 EDT**; the existing development watcher was resumed afterward. `npm run worker:configure` preserved the server credential and saved private local configuration. At the user's request, `npm run worker` was then started as a detached local process on this Mac. Provider preflight and authenticated backend heartbeat succeeded before its startup message. The 00:38:57 health sample reported an online worker, a one-second heartbeat age, no error category, six completed jobs and none queued/claimed/failed/expired. The local process uses protocol 2 and the new two-second idle polling code. The earlier worker's host remains unidentified and that process was not stopped; leases coordinate concurrent claimers. No live participant request was generated for this startup check, so this proves local startup/backend connectivity, not a new live coordination result. Local PID/log locations and operating instructions are in [deployment and operations](12-deployment-and-operations.md#local-worker-implementation-and-setup).
+
+| Checkpoint in `prompts/` | Current evidence and remaining gate |
+|---|---|
+| M1 messaging/domain | Real JOIN, assignment acceptance and prior-run reassignment are evidenced. The October 11 follow-up also exercised guided setup, team capacity, organizer approval and explicit overlap confirmation. Real NO/replay/outage remain open; the follow-up did not repeat an actual reassignment. |
+| M2 AI/app | Real natural-language requests and the formerly failing task-ambiguity case worked in the October 11 follow-up. The user separately confirmed iOS force-close/reopen preserved sign-in and displayed matching assignments. Long-lived token refresh remains unverified. |
+| M3 freeze | Local regression/rehearsal is automated. Final real-phone walkthrough, timed demo recording and release tag remain open. Weather and other optional integrations stay cut. |
+
+### October 11 live follow-up: guided setup, teams and overlaps
+
+The actual participant run lasted **00:42:42–00:50:24 EDT**. Read-only backend/message review found **49 inbound messages, 66 provider-accepted outbound messages, nine reasoning jobs each completed in one attempt, and two intentionally suppressed outbound rows with zero send attempts**. The broader review snapshot included one earlier status exchange, giving 50 inbound and 67 provider-accepted outbound messages. Provider acceptance is not a delivery receipt; the suppressed rows were obsolete ordinary offers replaced by overlap warnings, not attempted provider failures.
+
+The scheduled event finished with five active commitments and no duplicate or excess staffing:
+
+| Task | Local window on October 12 | Final accepted participants | Capacity |
+|---|---|---|---|
+| setup | 1–2 PM EDT | Caleb and Yewon | 2/2 |
+| speakers | 1:30–2:30 PM EDT | Caleb | 1/1 |
+| cleanup | 3–4 PM EDT | Caleb and Yewon | 2/2 |
+
+Observed live behavior covered guided event/task creation, invitation creation and sender-bound named JOIN, a pending team offer surviving another acceptance, deterministic clarification between an active task and a different pending offer, a signed task choice, organizer approval separate from participant acceptance, explicit overlap confirmation, and adding a second teammate to an already occupied task with spare capacity. The speakers task remained unassigned through approval and the initial YES; it changed only after Caleb's explicit overlap confirmation. Yewon's competing speakers offer then became superseded. All six proposals were assignments: five accepted and one superseded. There was **no NO, actual reassignment/release, replay, STOP or RESUME** in this run; those steps must not be reported as passing from this evidence.
+
+Additional cross-event overlap warnings were legitimate: read-only inspection verified still-active commitments from earlier test events. Their private task/event names were replaced with generic references in the warnings. Caleb's self-volunteer requests therefore correctly entered warning/confirmation instead of immediately creating commitments.
+
+After the run, the **user reported** that force-closing and reopening the iOS app preserved sign-in and showed the same assignments. This establishes user-observed relaunch and status parity for this run; it is separate from backend logs and does not verify long-lived token refresh.
+
+Remaining UX friction was also observed. After saving the first task, three bare task-name/time inputs were treated as separate model requests instead of continuing task creation; they produced three generic clarification replies, one after the user had restarted the task wizard. Some outbound instructions still require an opaque offer reference. The organizer received both the speakers acceptance and an awkward competing-offer supersession notice. The live cleanup request correctly added a teammate, but the worker prompt's broad occupied-task/reassignment wording remains a latent add-versus-replace risk. This evidence is a sanitized summary; private conversation bodies, phone numbers, invitation codes and live record IDs are not stored here.
+
+### Closing the October 11 UX pass
+
+The follow-up is limited to friction observed in that run:
+
+- Saving a task now continues with the next task name, or `done`; every task still has a separate review. Delayed setup fragments and obsolete model questions cannot interrupt a newer wizard.
+- Approval and overlap instructions use task names and readable event/person qualifiers when unique. Opaque references remain only for unresolved collisions. Closed-offer notices explain current coverage.
+- `what's my status?` and other exact casual aliases use deterministic aggregate STATUS without creating a model job.
+- Cross-event overlap warnings show local conflict times while keeping other event/task/contact names private. A reviewed `close event <exact name>` → `yes, close it` workflow releases an old event's assignments and retains history. No live event has been closed by this work.
+- The worker distinguishes adding a teammate from replacing an assignee. A backend check rejects cancellation/replacement plans when the verified request clearly asks for an additional teammate, before any domain action executes.
+
+Verification: `npm run check` passed **572 tests with one optional test skipped**, including all strict TypeScript checks (`/tmp/rally-polish-final-check.log`). `npm run demo:rehearse` passed both simulated scenarios; `npm run eval:fake` passed **29/29**. The public/internal registered function inventory remains **46**. The closure suite includes rejection of confirmations received before the review was persisted, stale snapshots, lost consent/access, replay and suppression of obsolete offers.
+
+The first real-model sweep on synthetic inputs passed **27/29**, p50 **5,593 ms**, p95 **15,256 ms**. It unnecessarily clarified an explicitly named unassigned task (case 24) and guessed replacement for a vague request on an occupied task (case 29). After a narrow prompt correction, one targeted real-model check each for cases 24, 29 and neighboring cases 25–27 passed **5/5**. Corpus and grading stayed unchanged. The [initial sweep](../tests/eval/results/2026-10-11-polish-initial-live.json) is preserved separately from the [targeted follow-up](../tests/eval/results/2026-10-11-polish-targeted-live.json); this is not a 29/29 sweep. These are interpretation checks, not real phone delivery or domain acceptance tests. Human approval/acceptance remains required; the new additive guard does not claim to resolve every ambiguous staffing phrase.
+
+Known delivery limitation: event closure suppresses stale pending offers, but already queued historical status/acceptance receipts may still arrive afterward. They record prior activity and cannot reopen the event. The previously unidentified older worker remains outside local process control; the backend additive guard applies to its output too, while prompt/polling updates require the worker process to reload.
+
+The agreed stopping point is this UX pass, development deployment and local worker restart. No additional feature pass, production release, live participant test, automatic closure of old events or completion claim for all M3 gates is implied. The previous user-observed iOS relaunch/status result remains valid; this pass changes no iOS source.
+
+Deployment completed at **01:03:52 EDT** to verified development target `calm-jackal-984`, including the two additive indexes. The paused development watcher was resumed. With no queued/claimed jobs, the owned local worker process was restarted to load the new prompt; provider preflight and authenticated heartbeat succeeded. At **01:04:11 EDT**, health showed a two-second heartbeat age, no error category, 15 completed jobs and none queued/claimed/failed/expired. This is runtime health, not a new participant interaction. Only the owned local worker was restarted. Changes remain in the working tree; no commit, push or release tag was created for this pass.
+
 ## Integrated source and fixes
 
 `main` combines the A/B backend, D account/status continuation and C phone setup/worker branch (`6c4c444`). The five textual conflicts were README, event invitations, contact invitations, shared exports and the documentation index. Shared invitation helpers and app error wrappers are both preserved; all public signatures and canonical enums remain intact. D's ADR-019 is retained; C's colliding worker decision is now ADR-022.

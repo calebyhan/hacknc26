@@ -77,7 +77,41 @@ describe("Lane A+B full pipeline (simulation; no real provider/model)", () => {
     const secondTask = await h.app.mutation(api.tasks.create, { eventId: h.ids.event, title: "cleanup", windowStart: currentTask.windowEnd!, windowEnd: currentTask.windowEnd! + 3600000, expectedEventVersion: 2, idempotencyKey: "cleanup" });
     await h.offer(h.ids.jordan, "assignment", secondTask); await h.receive(h.phones.jordan, "YES");
     expect((await h.active()).map(c => c.participantId)).toEqual([h.ids.maya]);
-    expect(h.fake.sends.at(-1)?.content).toContain("several pending offers");
+    expect(h.fake.sends.at(-1)?.content).toContain("Which offer?");
+    expect(h.fake.sends.at(-1)?.content).toContain("cleanup: YES");
+    await h.receive(h.phones.jordan, "YES cleanup");
+    const commitments = await h.t.run(ctx => ctx.db.query("commitments").collect());
+    expect(commitments.filter(c => c.taskId === secondTask && c.state === "active").map(c => c.participantId)).toEqual([h.ids.jordan]);
+    expect((await h.active()).map(c => c.participantId)).toEqual([h.ids.maya]);
+  });
+  it("refuses colliding short references and targets a full reference without answering another offer", async () => {
+    const h = await harness(); const first = await h.offer();
+    const currentTask = (await h.t.run(ctx => ctx.db.get(h.ids.task)))!;
+    const secondTask = await h.app.mutation(api.tasks.create, { eventId: h.ids.event, title: "cleanup", windowStart: currentTask.windowEnd!, windowEnd: currentTask.windowEnd! + 3600000, expectedEventVersion: 2, idempotencyKey: "cleanup-reference" });
+    const second = await h.offer(h.ids.jordan, "assignment", secondTask);
+    await h.receive(h.phones.jordan, `NO ${second.slice(-6).toUpperCase()}`);
+    // convex-test IDs share the table-name suffix, deliberately exercising
+    // the rare production collision instead of assuming aliases are unique.
+    expect(await h.t.run(ctx => ctx.db.get(second))).toMatchObject({ state: "pending" });
+    await h.receive(h.phones.jordan, `NO ${second}`);
+    expect(await h.t.run(ctx => ctx.db.get(second))).toMatchObject({ state: "declined" });
+    expect(await h.t.run(ctx => ctx.db.get(first))).toMatchObject({ state: "pending" });
+    await h.receive(h.phones.jordan, "YES unknown-task");
+    expect(await h.t.run(ctx => ctx.db.get(first))).toMatchObject({ state: "pending" });
+  });
+  it("routes overlap confirmation only after a signed warning and leaves repeated YES uncommitted", async () => {
+    const h = await harness();
+    const currentTask = (await h.t.run(ctx => ctx.db.get(h.ids.task)))!;
+    const overlapping = await h.app.mutation(api.tasks.create, { eventId: h.ids.event, title: "greeting", windowStart: currentTask.windowStart!, windowEnd: currentTask.windowEnd!, expectedEventVersion: 2, idempotencyKey: "overlapping-greeting" });
+    const proposal = await h.offer(h.ids.maya, "assignment", overlapping);
+    await h.receive(h.phones.maya, "YES greeting");
+    expect(h.fake.sends.at(-1)?.content).toContain("CONFIRM OVERLAP");
+    await h.receive(h.phones.maya, "YES greeting");
+    expect(await h.t.run(ctx => ctx.db.get(proposal))).toMatchObject({ state: "pending" });
+    await h.receive(h.phones.maya, `CONFIRM OVERLAP ${proposal}`);
+    expect(await h.t.run(ctx => ctx.db.get(proposal))).toMatchObject({ state: "accepted" });
+    const active = await h.t.run(ctx => ctx.db.query("commitments").withIndex("by_participant", q => q.eq("participantId", h.ids.maya)).collect());
+    expect(active.filter(c => c.state === "active")).toHaveLength(2);
   });
   it("STOP revokes a queued request before the scheduled provider boundary runs", async () => {
     const h = await harness(), p = await h.offer(h.ids.jordan, "reassignment", h.ids.task, false);

@@ -22,7 +22,7 @@ Because a Pro shared line may assign different numbers to different participants
 
 1. Organizer picks specific contacts in-app (or, for P0 without the app, via explicit phone setup commands or the labeled bootstrap path in ADR-013), sees a review/consent screen.
 2. Rally creates short-lived invitation references but does **not** automatically blast numbers. Share invite instruction through a user-controlled method or an authorized provider flow.
-3. Participant initiates an inbound message to the agent containing `JOIN <code>` from their invitation. The code is **required**: it links the sending phone to the selected contact and proves phone control. A message without a valid code gets the unknown-sender onboarding reply (A6) and no event data.
+3. Participant initiates an inbound message in their own Rally conversation with `join <event name>` or the original `JOIN <code>`. Named joining requires exactly one pending invitation selected for that signed sending phone; the name alone grants no access. Duplicate event names require the original code. An unmatched sender gets generic onboarding and no event data.
 4. Upon successful verification, mark the invitation `redeemed`, set membership `enrolled`, and record `consentAt` / `consentSourceMessageId` on that membership (consent is event-scoped).
 5. Handle the [deterministic commands](#deterministic-commands) before any model invocation.
 6. If no opt-in or messaging relationship exists, the membership stays `invited` and the organizer sees "Waiting for them to text Rally"; do not send an unsolicited message.
@@ -34,6 +34,7 @@ Canonical list, parsed case-insensitively before context resolution or any model
 | Command | Who | Effect |
 |---|---|---|
 | `JOIN <code>` | Anyone | Redeem a `pending` invitation (W1). Invalid/expired code → generic onboarding reply, increment `failedAttempts`. |
+| `join <event name>` | Selected invitee | Redeem exactly one current phone-bound invitation matching that name; ambiguous names require the original code. |
 | `YES` / `NO` | Target of a pending proposal | Accept/decline **their** pending proposal. If they have several, ask which one (W4). |
 | `STATUS` | Enrolled member | Summary of their events/commitments/pending proposals, scoped to their membership (R9). |
 | `HELP` | Anyone | Command list; no event data for unknown senders. |
@@ -41,7 +42,17 @@ Canonical list, parsed case-insensitively before context resolution or any model
 | `PAUSE` / `RESUME` | Verified inbound sender | `messagingState` → `paused` / `active`. |
 | `LEAVE <event>` | Enrolled member | Membership → `left`; cancel pending proposals targeting them in that event; organizer notified. |
 
-Additive deterministic setup commands use a separate shared schema, preserving the frozen everyday command contract: `CREATE EVENT <title> | <ISO instant> | <timezone> | <optional location>`, `CONFIRM <event ID> <version>`, `TASK <event> | <title> | <start ISO> | <end ISO>`, `INVITE <event> | <name> | <E.164 phone>`, and `APPROVE <proposal ID>`. Only first-draft creation and fixed syntax help are available before JOIN. The remaining writes require scoped organizer role and genuine event consent. Read the [phone setup runbook](12-deployment-and-operations.md#phone-only-event-setup). A phone draft reply is an exact audited response to its initiating message; it does not permit general unsolicited sends.
+The guided phone setup path accepts `create an event`, `new event`, or `plan an event`, then asks for title, date/time, timezone (or the sender's saved timezone), and location. It shows a local-time review and the notification opt-in before accepting the distinct phrase `yes, create it`. That signed reviewed confirmation creates and schedules the event and records the organizer's event-specific messaging consent atomically. Bare `YES` remains a proposal reply. No event or invitation is created from an unfinished review.
+
+Dates use an explicit format such as `Oct 18, 2026 at 2 PM` (or `2026-10-18 2 PM`), with a year and AM/PM. This is a deterministic parser, not arbitrary natural-language date interpretation: `tomorrow`, numeric slash dates, invalid dates, and daylight-saving skipped/repeated times require clarification. Timezones accept Eastern, Central, Mountain, Pacific, UTC, or an IANA name. Reviews show readable local dates.
+
+Consented organizers can text `invite someone` or `add a task`. Rally uses the current authorized event or asks the sender to select one, then reviews the specific action. Invitation phone input accepts formatted numbers with an explicit `+` country code; it never guesses a country. Reviews show only the last four phone digits. `yes, invite them` creates a phone-bound invitation for human handoff and never contacts or enrolls the invitee. Task setup asks for start/end and staffing of 1–20 people; a clock-only answer uses the displayed event day. `yes, add it` creates an unassigned task, including tasks parallel to existing tasks. Organizer `approve <task name>` resolves only one current authorized approval; fuller task/participant/event labels disambiguate, and participant acceptance remains separate.
+
+Guided sessions are durable, sender-bound and expire after 15 minutes without a setup reply; `cancel setup` discards them. Inbox deduplication precedes writes. Exact replies to the signed sender are authorized by a private receipt containing only the sender ID, source message ID and content hash, rechecked at dispatch. This permits setup before event consent without authorizing arbitrary unsolicited messages or echoing a selected phone into the outbox. Event consent additionally records the explicit confirmation's source and audited event/actor binding.
+
+Expert forms remain compatible: `CREATE EVENT <title> | <ISO instant> | <timezone> | <optional location>`, `CONFIRM <event ID> <version>`, `TASK <event> | <title> | <start ISO> | <end ISO> | <optional capacity>`, `INVITE <event> | <name> | <phone with country code>`, and `APPROVE <proposal ID>`. Expert event creation retains its draft → own JOIN → CONFIRM sequence. Other writes require scoped organizer role and event consent. Read the [phone setup runbook](12-deployment-and-operations.md#phone-only-event-setup).
+
+Guided behavior is covered by signed **simulated** message/fake-delivery tests in `tests/integration/guided-phone-setup.test.ts` and pure parser tests in `packages/shared/phoneConversation.test.ts`. These tests do not establish real-device Photon acceptance.
 
 Equivocal replies (“maybe”, “probably”) are **not** `YES`; leave pending and ask for YES or NO.
 

@@ -6,6 +6,7 @@ struct PhoneLinkChallenge: Codable, Equatable, Sendable {
     let invitationId: String
     let code: String
     let expiresAt: Double
+    var route: RallyRoute? = nil
 
     var expirationDate: Date { Date(timeIntervalSince1970: expiresAt / 1_000) }
 }

@@ -32,6 +32,9 @@ export const ContextBuildInputSchema = z.strictObject({
   memberships: z.array(MembershipSchema).optional(),
   pendingProposalsForSender: z.array(ContextPendingProposalSchema),
   recentEventFocusId: IdentifierSchema.nullable(),
+  recentTaskFocusId: IdentifierSchema.nullable().optional(),
+  selectedTaskId: IdentifierSchema.nullable().optional(),
+  currentTime: TimestampSchema.optional(),
 });
 export type EventResolutionInput = z.infer<typeof EventResolutionInputSchema>;
 export type EventResolution = z.infer<typeof EventResolutionSchema>;
@@ -52,10 +55,10 @@ export function resolveEvent(raw: EventResolutionInput): EventResolution {
     const candidateIds = [...new Set(ids)].sort();
     return EventResolutionSchema.parse({ selectedEventId: candidateIds.length === 1 ? candidateIds[0] : null, candidateIds, requiresClarification: candidateIds.length > 1, reasonCodes: [reason] });
   };
-  const pending = input.pendingProposalsForSender.filter((p) => p.targetUserId === input.senderUserId && allowed.has(p.eventId) && Date.parse(p.expiresAt) > input.now);
-  if (pending.length) return result(pending.map((p) => p.eventId), "PENDING_PROPOSAL");
   const explicit = events.filter((event) => mentions(input.incomingText, event.title) || mentions(input.incomingText, event.id));
   if (explicit.length) return result(explicit.map((event) => event.id), "EXPLICIT_EVENT");
+  const pending = input.pendingProposalsForSender.filter((p) => p.targetUserId === input.senderUserId && allowed.has(p.eventId) && Date.parse(p.expiresAt) > input.now);
+  if (pending.length) return result(pending.map((p) => p.eventId), "PENDING_PROPOSAL");
   if (input.recentFocus && input.recentFocus.expiresAt > input.now && allowed.has(input.recentFocus.eventId)) return result([input.recentFocus.eventId], "RECENT_EVENT");
   const matches = input.tasks.filter((task) => allowed.has(task.eventId) && !["canceled", "completed"].includes(task.status) && (mentions(input.incomingText, task.title) || mentions(input.incomingText, task.id)));
   if (matches.length) return result(matches.map((task) => task.eventId), "TASK_MATCH");
@@ -75,16 +78,23 @@ export function buildContextPacket(raw: ContextBuildInput): ContextPacket {
     messageId: input.messageId,
     sender: { userId: input.sender.id, role: input.senderRole },
     recentEventFocusId: input.recentEventFocusId && allowed.has(input.recentEventFocusId) ? input.recentEventFocusId : null,
-    candidateEvents: events.map((event) => ({ id: event.id, title: event.title, startsAt: new Date(event.startsAt).toISOString() })),
+    ...(input.currentTime === undefined ? {} : { currentTime: new Date(input.currentTime).toISOString() }),
+    selectedTaskId: selected && input.relevantTasks.some(t => t.eventId === selected.id && t.id === input.selectedTaskId) ? input.selectedTaskId : null,
+    recentTaskFocusId: selected && input.relevantTasks.some(t => t.eventId === selected.id && t.id === input.recentTaskFocusId) ? input.recentTaskFocusId : null,
+    candidateEvents: events.map((event) => ({ id: event.id, title: event.title, startsAt: new Date(event.startsAt).toISOString(), timezone: event.timezone })),
     relevantTasks: selected ? input.relevantTasks.filter((task) => task.eventId === selected.id).map((task) => ({
-      id: task.id, name: task.title, status: task.status, version: task.version,
+      id: task.id, name: task.title, status: task.status, version: task.version, capacity: task.capacity,
+      ...(task.windowStart === undefined || task.windowEnd === undefined ? {} : { window: { startsAt: new Date(task.windowStart).toISOString(), endsAt: new Date(task.windowEnd).toISOString() } }),
       activeAssigneeIds: [...new Set(input.commitments.filter((c) => c.eventId === selected.id && c.taskId === task.id && c.state === "active").map((c) => c.participantId))],
     })) : [],
     relevantParticipants: selected ? (input.memberships ?? []).filter(m => m.eventId === selected.id && m.state === "enrolled").flatMap(m => {
       const user = input.participants?.find(p => p.id === m.userId);
       return user ? [{ userId: user.id, displayName: user.displayName, role: m.role }] : [];
     }) : [],
-    pendingProposalsForSender: input.pendingProposalsForSender.filter((p) => p.targetUserId === input.sender.id && allowed.has(p.eventId)),
+    pendingProposalsForSender: input.pendingProposalsForSender.filter((p) => p.targetUserId === input.sender.id && allowed.has(p.eventId)).map(p => {
+      const task = selected ? input.relevantTasks.find(t => t.eventId === selected.id && t.id === p.targetTaskId) : undefined;
+      return { ...p, ...(task ? { taskName: task.title } : {}) };
+    }),
     incomingText: input.incomingText,
     eventVersion: selected?.version ?? null,
   });

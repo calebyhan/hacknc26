@@ -2,11 +2,14 @@ import { v } from "convex/values";
 import { internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { openEnvelope, senderFor } from "./lib/messaging";
-import { parseCommand } from "../packages/shared/commands";
-import { controlCopy, helpCopy, invalidJoinCopy, onboardingCopy, pendingCounts, renderStatus, unavailableCopy } from "../packages/shared/copy";
+import { parseCommand, proposalReferenceMatches } from "../packages/shared/commands";
+import { controlCopy, helpCopy, invalidJoinCopy, onboardingCopy, unavailableCopy, phoneLinkProofCopy } from "../packages/shared/copy";
+import { renderStatusDetails } from "./lib/statusText";
+import { routeTaskClarification } from "./lib/taskClarification";
+import { proposalReplyReference } from "./lib/proposalEngine";
 import type { Doc, Id } from "./_generated/dataModel";
 import { resolveMessageJob } from "./context";
-import { parsePhoneSetupCommand, phoneSetupErrorCopy } from "../packages/shared/phoneSetup";
+import { phoneSetupErrorCopy } from "../packages/shared/phoneSetup";
 
 /**
  * Lane A: load persisted verified inbound, then shared parseCommand. Derive the
@@ -30,9 +33,11 @@ export const route = internalMutation({
     // keeps their existing canonical ID on their first inbound JOIN.
     let joinedEventId: Id<"events"> | undefined;
     let joined = false;
-    if (command.type === "JOIN") {
+    let phoneLinkProof = false;
+    if (command.type === "JOIN" && /^[a-f\d]{32}$/iu.test(command.code)) {
       const result = await ctx.runMutation(internal.invitations.redeem, { messageId: message._id, code: command.code });
-      if (result.redeemed) {
+      if ("phoneLinkProof" in result) phoneLinkProof = true;
+      else if (result.redeemed) {
         user = await ctx.db.get(result.userId);
         joined = true;
         joinedEventId = result.eventId;
@@ -60,14 +65,15 @@ export const route = internalMutation({
       await reply(controlCopy[state]);
       return finish();
     }
-    if (command.type === "UNKNOWN" && parsePhoneSetupCommand(envelope.text)) {
+    if (command.type === "UNKNOWN" || (command.type === "JOIN" && !/^[a-f\d]{32}$/iu.test(command.code))) {
       if (sender.messagingState !== "active") return finish();
-      try { await ctx.runMutation(internal.phoneSetup.execute, { messageId: message._id }); }
-      catch { await reply(phoneSetupErrorCopy); }
-      return finish();
+      try {
+        if (await ctx.runMutation(internal.phoneSetup.execute, { messageId: message._id })) return finish();
+      } catch { await reply(phoneSetupErrorCopy); return finish(); }
     }
     if (command.type === "HELP") { await reply(helpCopy); return finish(); }
     if (command.type === "JOIN") {
+      if (phoneLinkProof) { await reply(phoneLinkProofCopy); return finish(); }
       if (joined && joinedEventId && sender.messagingState === "active") {
         const event = await ctx.db.get(joinedEventId);
         await reply(`You've joined ${event!.title}. Text STATUS for assignments or HELP for commands.`, joinedEventId);
@@ -79,7 +85,7 @@ export const route = internalMutation({
     const scope = memberships[0]!.eventId;
     try {
       switch (command.type) {
-        case "YES": case "NO": {
+        case "YES": case "NO": case "CONFIRM_OVERLAP": {
           const proposals = (await ctx.db.query("proposals").withIndex("by_target", (q) => q.eq("targetUserId", sender._id)).collect()).filter((p) => p.state === "pending" && memberships.some((m) => m.eventId === p.eventId) && (!p.requiresOrganizerApproval || p.organizerApprovedAt !== undefined));
           // Match current snapshot-valid offers, like domain.statusFor does.
           // A stale row waiting for its expiry job must not hide one valid offer.
@@ -87,21 +93,29 @@ export const route = internalMutation({
             const event = await ctx.db.get(proposal.eventId);
             const task = proposal.targetTaskId ? await ctx.db.get(proposal.targetTaskId) : null;
             const valid = proposal.expiresAt > Date.now() && event?.status === "scheduled" && event.version === proposal.eventVersionAtCreation && task?.eventId === event._id && task.version === proposal.taskVersionAtCreation && task.status !== "completed" && task.status !== "canceled";
-            return { proposal, valid };
+            return { proposal, task, event, valid };
           }));
-          const current = checked.filter(item => item.valid).map(item => item.proposal);
-          const proposal = current.length === 1 ? current[0] : current.length === 0 && proposals.length === 1 ? proposals[0] : undefined;
+          const candidates = checked.filter(item => !command.proposalRef || proposalReferenceMatches(command.proposalRef, item.proposal._id, item.task?.title, item.event?.title));
+          const current = candidates.filter(item => item.valid).map(item => item.proposal);
+          const proposal = current.length === 1 ? current[0] : current.length === 0 && candidates.length === 1 ? candidates[0]!.proposal : undefined;
           if (proposal) {
-            await ctx.runMutation(internal.proposals.respond, { proposalId: proposal._id, actorId: sender._id, sourceMessageId: message._id, response: command.type === "YES" ? "accept" : "decline" });
+            await ctx.runMutation(internal.proposals.respond, { proposalId: proposal._id, actorId: sender._id, sourceMessageId: message._id, response: command.type === "NO" ? "decline" : "accept" });
             // Domain owns resulting notices; never infer success from model text.
-          } else await reply(current.length > 1 ? "You have several pending offers. Ask the organizer to keep one offer open before replying YES or NO." : proposals.length ? "Your offers expired or changed. Ask the organizer for a new offer." : "You have no pending offer to answer.", scope);
+          } else {
+            const valid = checked.filter(item => item.valid);
+            const choices = await Promise.all(valid.map(async item => {
+              const ref = await proposalReplyReference(ctx, sender._id, item.proposal._id);
+              return `${item.task!.title}: ${command.type === "CONFIRM_OVERLAP" ? "CONFIRM OVERLAP" : "YES"} ${ref}`;
+            }));
+            await reply(choices.length ? `Which offer? ${choices.join("; ")}. You can also reply NO followed by the same reference. Nothing changed.` : proposals.length ? "Your offers expired or changed. Ask the organizer for a new offer." : "You have no pending offer to answer.", scope);
+          }
           break;
         }
         case "STATUS": {
           const status = await ctx.runQuery(internal.domain.statusFor, { userId: sender._id });
           if (status.events.some((detail) => !enrolled.some((m) => m.eventId === detail.event._id))) throw new Error("STATUS_SCOPE_VIOLATION");
           const consented = status.events.filter(detail => memberships.some(m => m.eventId === detail.event._id));
-          await reply(renderStatus({ events: consented.map((detail) => ({ title: detail.event.title, eventId: detail.event._id, tasks: detail.tasks.map((task) => ({ title: task.title, status: task.status, assigneeCount: task.activeAssigneeIds.length, ...pendingCounts(detail.proposals, task._id) })) })) }), scope);
+          await reply(renderStatusDetails(consented), scope);
           break;
         }
         case "LEAVE": {
@@ -132,10 +146,12 @@ export const route = internalMutation({
           if (pending && /^(maybe|probably)\b/iu.test(envelope.text.trim())) { await reply("No acceptance recorded. Please reply YES or NO.", scope); break; }
           const recent = await ctx.db.query("inboundMessages").withIndex("by_sender", (q) => q.eq("senderPhone", message.senderPhone)).order("desc").take(31);
           if (recent.filter((m) => m.receivedAt > Date.now() - 60_000).length > 30) { await reply("Too many requests. Please wait a minute before trying again.", scope); break; }
+          const clarification = await routeTaskClarification(ctx, message._id);
+          if (clarification) { await reply(clarification.content, clarification.eventId); break; }
           const job = await resolveMessageJob(ctx, message._id);
           if (!job.eventId) { await reply("Which of your events is this about? Please include its name or event ID. Text STATUS to distinguish events with the same name.", scope); break; }
           await ctx.runMutation(internal.reasoningJobs.enqueue, job);
-          await reply("I've queued your request for review. No assignment has changed yet.", job.eventId);
+          await reply("Got it. I’ll check the plan.", job.eventId);
           break;
         }
       }

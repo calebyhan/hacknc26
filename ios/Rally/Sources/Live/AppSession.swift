@@ -11,6 +11,7 @@ protocol SessionAuthenticating: AnyObject {
     var connected: AnyPublisher<Bool, Never> { get }
     var unauthenticated: AnyPublisher<Bool, Never> { get }
     func login() async throws
+    func restore() async throws -> Bool
     func logout() async -> Bool
     func clearLocalCredentials() -> Bool
 }
@@ -41,6 +42,11 @@ private final class SDKSessionAuthentication: SessionAuthenticating {
 
     func login() async throws { _ = try await sdk.login().get() }
 
+    func restore() async throws -> Bool {
+        do { _ = try await sdk.loginFromCache().get(); return true }
+        catch let error as CredentialsManagerError where error == .noCredentials { return false }
+    }
+
     func clearLocalCredentials() -> Bool {
         clearCredentialCache()
     }
@@ -62,6 +68,7 @@ final class AppSession: ObservableObject {
     @Published private(set) var client: (any RallyClient)?
     @Published private var authenticationOperations = 0
     @Published private(set) var isRegistering = false
+    @Published private(set) var isRestoring = false
     @Published private(set) var canRetryRegistration = false
     @Published private(set) var canCreateEvents = false
     @Published private(set) var phoneVerifiedForSession = false
@@ -81,6 +88,8 @@ final class AppSession: ObservableObject {
     private var registrationName = ""
     private var signOutInFlight = false
     private var loginSucceeded = false
+    private var restorationAttempted = false
+    private var needsRegistration = true
 
     var liveConfigured: Bool { makeAuthentication != nil }
     var isSigningIn: Bool { authenticationOperations > 0 }
@@ -109,6 +118,49 @@ final class AppSession: ObservableObject {
 
     deinit { accountTask?.cancel() }
 
+    /// Restore Keychain credentials once per launch; protected state still comes
+    /// from a fresh authorized account read, never from cached membership/proof.
+    func restoreSession() async {
+        guard !restorationAttempted else { return }
+        restorationAttempted = true
+        guard let makeAuthentication, !isSigningIn, client == nil, authentication == nil else { return }
+        authenticationOperations += 1
+        isRestoring = true
+        defer { authenticationOperations -= 1; isRestoring = false }
+        error = nil
+        needsRegistration = false
+        let generation = UUID()
+        sessionGeneration = generation
+        let boundary = makeAuthentication()
+        authentication = boundary
+        bind(boundary, generation: generation)
+        do {
+            let restored = try await boundary.restore()
+            guard sessionGeneration == generation else {
+                if restored { _ = await boundary.logout() }
+                else { _ = boundary.clearLocalCredentials() }
+                return
+            }
+            guard restored else {
+                clearProtectedState()
+                authentication = nil
+                return
+            }
+            loginSucceeded = true
+            await register(using: boundary, generation: generation)
+        } catch {
+            guard sessionGeneration == generation else {
+                _ = boundary.clearLocalCredentials()
+                return
+            }
+            sessionGeneration = UUID()
+            clearProtectedState()
+            authentication = nil
+            // A temporary refresh/network failure must not erase Keychain data.
+            self.error = "Your saved session could not be restored. Check your connection or sign in again."
+        }
+    }
+
     func enterDemo() {
         guard !isSigningIn, authentication == nil else { return }
         error = nil
@@ -135,6 +187,8 @@ final class AppSession: ObservableObject {
             return
         }
         registrationName = name
+        restorationAttempted = true
+        needsRegistration = true
         authenticationOperations += 1
         defer { authenticationOperations -= 1 }
         error = nil
@@ -143,23 +197,10 @@ final class AppSession: ObservableObject {
         sessionGeneration = generation
         let boundary = makeAuthentication()
         authentication = boundary
-        connection = .connecting
-        connectionSubscription = boundary.connected.receive(on: DispatchQueue.main)
-            .sink { [weak self] connected in
-                guard let self, self.sessionGeneration == generation else { return }
-                self.connection = connected ? .connected : .connecting
-            }
-        authSubscription = boundary.unauthenticated.receive(on: DispatchQueue.main)
-            .sink { [weak self] unauthenticated in
-                guard unauthenticated, let self, self.sessionGeneration == generation,
-                      self.loginSucceeded else { return }
-                self.authenticationExpired()
-            }
+        bind(boundary, generation: generation)
         do {
             try await boundary.login()
             guard sessionGeneration == generation else {
-                // A canceled login may finish after sign-out. Discard its newly
-                // stored credentials before allowing another login attempt.
                 _ = await boundary.logout()
                 return
             }
@@ -180,6 +221,21 @@ final class AppSession: ObservableObject {
         }
     }
 
+    private func bind(_ boundary: any SessionAuthenticating, generation: UUID) {
+        connection = .connecting
+        connectionSubscription = boundary.connected.receive(on: DispatchQueue.main)
+            .sink { [weak self] connected in
+                guard let self, self.sessionGeneration == generation else { return }
+                self.connection = connected ? .connected : .connecting
+            }
+        authSubscription = boundary.unauthenticated.receive(on: DispatchQueue.main)
+            .sink { [weak self] unauthenticated in
+                guard unauthenticated, let self, self.sessionGeneration == generation,
+                      self.loginSucceeded else { return }
+                self.authenticationExpired()
+            }
+    }
+
     func retryRegistration() async {
         guard canRetryRegistration, !isSigningIn, let authentication else { return }
         authenticationOperations += 1
@@ -192,7 +248,9 @@ final class AppSession: ObservableObject {
         canRetryRegistration = false
         error = nil
         do {
-            _ = try await boundary.rallyClient.register(displayName: registrationName)
+            if needsRegistration {
+                _ = try await boundary.rallyClient.register(displayName: registrationName)
+            }
             guard sessionGeneration == generation else { return }
             try await observeAccount(using: boundary.rallyClient, generation: generation)
             guard sessionGeneration == generation else { return }
@@ -307,6 +365,7 @@ final class AppSession: ObservableObject {
 
     func signOut() async {
         guard !signOutInFlight else { return }
+        restorationAttempted = true
         signOutInFlight = true
         authenticationOperations += 1
         defer {

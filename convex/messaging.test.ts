@@ -320,7 +320,7 @@ describe("Lane A routing against explicit Lane B/C test doubles", () => {
     await t.mutation(internal.commands.route, { messageId });
     await t.mutation(internal.commands.route, { messageId });
     expect(await t.run((ctx) => ctx.db.query("reasoningJobs").collect())).toHaveLength(1);
-    expect((await t.run((ctx) => ctx.db.query("outboundMessages").collect())).filter((row) => row.content.includes("queued your request"))).toHaveLength(1);
+    expect((await t.run((ctx) => ctx.db.query("outboundMessages").collect())).filter((row) => row.content === "Got it. I’ll check the plan.")).toHaveLength(1);
     await t.run((ctx) => ctx.db.insert("proposals", { eventId: member.eventId, type: "assignment", originatorId: member.userId, targetUserId: member.memberId, state: "pending", requiresOrganizerApproval: false, eventVersionAtCreation: 1, expiresAt: Date.now() + 60_000, idempotencyKey: "fixture-maybe" }));
     await t.mutation(internal.commands.route, { messageId: await inbound(t, "Maybe?") });
     expect(await t.run((ctx) => ctx.db.query("reasoningJobs").collect())).toHaveLength(1);
@@ -330,6 +330,8 @@ describe("Lane A routing against explicit Lane B/C test doubles", () => {
       await ctx.db.insert("memberships", { userId: member.memberId, eventId, role: "member", state: "enrolled", notificationsEnabled: true, consentAt: Date.now(), consentSourceMessageId: member.messageId });
       return eventId;
     });
+    // Recent event focus now persists. Expire it to exercise genuine ambiguity.
+    await t.run(async ctx => { const focus = await ctx.db.query("conversationFocus").withIndex("by_user", q => q.eq("userId", member.memberId)).unique(); if (focus) await ctx.db.patch(focus._id, { expiresAt: Date.now() - 1 }); });
     await t.mutation(internal.commands.route, { messageId: await inbound(t, "Can someone cover setup?") });
     expect(await t.run((ctx) => ctx.db.query("reasoningJobs").collect())).toHaveLength(1);
     await t.mutation(internal.commands.route, { messageId: await inbound(t, "For Fixture Hack Night, can someone cover setup?") });

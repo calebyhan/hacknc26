@@ -53,8 +53,14 @@ final class RallyUITests: XCTestCase {
         XCTAssertTrue(taskTitle.waitForExistence(timeout: 5))
         taskTitle.tap()
         taskTitle.typeText("Bring snacks")
+        let people = app.steppers["taskCapacity"]
+        reveal(people, in: app)
+        people.buttons["taskCapacity-Increment"].tap()
+        people.buttons["taskCapacity-Increment"].tap()
+        XCTAssertTrue(app.staticTexts["People needed: 3"].exists)
         app.buttons["saveTask"].tap()
         XCTAssertTrue(app.staticTexts["Bring Snacks"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["0 of 3 people confirmed"].waitForExistence(timeout: 5))
         app.swipeDown()
         let confirm = app.buttons["confirmEvent"]
         XCTAssertTrue(confirm.waitForExistence(timeout: 5))

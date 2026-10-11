@@ -242,7 +242,8 @@ describe("Lane B setup and approvals (simulation)", () => {
       const other = await ctx.db.insert("tasks", { eventId: f.ids.event, title: "overlapping shift", windowStart: task.windowStart!, windowEnd: task.windowEnd!, capacity: 1, status: "confirmed", version: 1 });
       await ctx.db.insert("commitments", { eventId: f.ids.event, taskId: other, participantId: f.ids.jordan, state: "active", createdAt: Date.now() });
     });
-    expect(await f.t.mutation(internal.proposals.respond, { proposalId: p, actorId: f.ids.jordan, sourceMessageId: await f.message(f.ids.jordan, "YES"), response: "accept" })).toBe("canceled");
+    expect(await f.t.mutation(internal.proposals.respond, { proposalId: p, actorId: f.ids.jordan, sourceMessageId: await f.message(f.ids.jordan, "YES"), response: "accept" })).toBe("pending");
+    expect((await f.t.run(ctx => ctx.db.query("outboundMessages").collect())).some(row => row.recipientUserId === f.ids.jordan && row.content.includes("CONFIRM OVERLAP"))).toBe(true);
     expect(await f.t.run(ctx => ctx.db.get(f.ids.task))).toMatchObject({ version: 1, status: "confirmed" });
   });
   it("task changes cannot break a dependent task's schedule", async () => {
@@ -291,7 +292,9 @@ describe("untrusted decision execution (simulated worker)", () => {
     expect(await f.t.mutation(internal.domain.executeDecision, input)).toEqual(result);
     expect(result.proposalIds).toHaveLength(1); expect(result.commitmentIds).toEqual([]);
     expect((await f.t.run(ctx => ctx.db.query("commitments").collect())).filter(c => c.state === "active").map(c => c.participantId)).toEqual([f.ids.maya]);
-    expect(await f.t.run(ctx => ctx.db.query("outboundMessages").collect())).toHaveLength(1);
+    const notices = await f.t.run(ctx => ctx.db.query("outboundMessages").collect());
+    expect(notices).toHaveLength(2);
+    expect(notices.some(row => row.recipientUserId === f.ids.alex && row.content.includes("Offer created for Jordan to cover setup") && row.content.includes("Waiting for Jordan to accept"))).toBe(true);
     await expect(f.t.mutation(internal.domain.executeDecision, { ...input, decisionJson: JSON.stringify(decision(f.ids.event, [{ type: "REQUEST_STATUS" }])) })).rejects.toThrow("IDEMPOTENCY_CONFLICT");
   });
   it.each(["scope", "event-version", "task-version", "unknown-task", "unknown-person", "lease", "forbidden", "unsupported", "unscoped"])("fails closed for %s without writes", async invalid => {

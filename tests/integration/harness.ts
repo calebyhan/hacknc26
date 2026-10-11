@@ -48,10 +48,10 @@ export async function messagingHarness() {
 export async function harness() {
   const { t, phones, fake, drain, receive, outbox } = await messagingHarness();
   const app = t.withIdentity({ subject: "simulation|integration-organizer" });
-  const alex = await app.mutation(api.accounts.register, { displayName: "Alex" });
+  await app.mutation(api.accounts.register, { displayName: "Alex" });
   const phoneProof = await app.mutation(api.accounts.beginPhoneLink, { phoneE164: phones.alex, idempotencyKey: "phone" });
   await receive(phones.alex, `JOIN ${phoneProof.code}`);
-  await app.mutation(api.accounts.completePhoneLink, { invitationId: phoneProof.invitationId });
+  const alex = await app.mutation(api.accounts.completePhoneLink, { invitationId: phoneProof.invitationId });
   const event = await app.mutation(api.events.create, { title: "Integration Charity 5K", kind: "event", startsAt: Date.now() + 86400000, timezone: "America/New_York", idempotencyKey: "event" });
   const task = await app.mutation(api.tasks.create, { eventId: event, title: "setup", windowStart: Date.now() + 86400000, windowEnd: Date.now() + 90000000, expectedEventVersion: 1, idempotencyKey: "task" });
   await app.mutation(api.events.confirmDraft, { eventId: event, expectedVersion: 1 });

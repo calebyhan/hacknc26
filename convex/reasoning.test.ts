@@ -5,6 +5,7 @@ import { api, internal } from "./_generated/api";
 import { internalAction, internalMutation } from "./_generated/server";
 import { sealEnvelope } from "./lib/messaging";
 import { exampleAgentDecision } from "../packages/shared/fixtures";
+import { LegacyContextPacketSchema } from "../packages/shared/contextProtocol";
 import { ContextPacketSchema } from "../packages/shared/contextPacket";
 import schema from "./schema";
 
@@ -54,7 +55,7 @@ describe("authenticated leased reasoning queue (simulation)", () => {
   it("returns one compact packet to one competing worker", async () => {
     const { t, enqueueArgs, ids } = await fixture();
     await t.mutation(internal.reasoningJobs.enqueue, enqueueArgs);
-    const claims = await Promise.all([t.mutation(api.reasoningJobs.claim, credentials), t.mutation(api.reasoningJobs.claim, { ...credentials, workerId: "second-worker" })]);
+    const claims = await Promise.all([t.mutation(api.reasoningJobs.claim, { ...credentials, contextProtocol: 2 }), t.mutation(api.reasoningJobs.claim, { ...credentials, contextProtocol: 2, workerId: "second-worker" })]);
     const claimed = claims.find((job) => job !== null)!;
     expect(claims.filter(Boolean)).toHaveLength(1);
     expect(claimed.leaseToken.length).toBeGreaterThanOrEqual(32);
@@ -63,11 +64,29 @@ describe("authenticated leased reasoning queue (simulation)", () => {
     expect(packet.relevantTasks).toMatchObject([{ id: ids.taskId, version: 1 }]);
     expect(claimed.packetJson).not.toContain("+1555");
   });
+  it("keeps omitted-protocol claim compatible with old strict workers while v2 retains rich fields", async () => {
+    for (const contextProtocol of [undefined, 2] as const) {
+      const { t, enqueueArgs, ids } = await fixture();
+      await t.mutation(internal.reasoningJobs.enqueue, enqueueArgs);
+      const claimed = (await t.mutation(api.reasoningJobs.claim, { ...credentials, ...(contextProtocol === undefined ? {} : { contextProtocol }) }))!;
+      const packet = JSON.parse(claimed.packetJson);
+      if (contextProtocol === undefined) {
+        expect(LegacyContextPacketSchema.safeParse(packet).success).toBe(true);
+        expect(packet).not.toHaveProperty("currentTime");
+        expect(packet.incomingText).toContain("Original participant message:");
+      } else {
+        expect(ContextPacketSchema.parse(packet)).toMatchObject({ currentTime: expect.any(String), selectedTaskId: null, recentTaskFocusId: null, candidateEvents: [expect.objectContaining({ timezone: "America/New_York" })], relevantTasks: [expect.objectContaining({ id: ids.taskId, capacity: 1 })] });
+        expect(LegacyContextPacketSchema.safeParse(packet).success).toBe(false);
+      }
+      expect(claimed.leaseUntil - Date.now()).toBe(45_000);
+      expect(await t.run(ctx => ctx.db.get(claimed.jobId))).toMatchObject({ attempts: 1, status: "claimed" });
+    }
+  });
   it("checks membership and STOP again before claim", async () => {
     const { t, ids, enqueueArgs } = await fixture();
     await t.mutation(internal.reasoningJobs.enqueue, enqueueArgs);
     await t.run((ctx) => ctx.db.patch(ids.userId, { messagingState: "stopped" }));
-    expect(await t.mutation(api.reasoningJobs.claim, credentials)).toBeNull();
+    expect(await t.mutation(api.reasoningJobs.claim, { ...credentials, contextProtocol: 2 })).toBeNull();
     expect(await t.run((ctx) => ctx.db.query("outboundMessages").collect())).toHaveLength(0);
   });
   it("supplies joined participant names without leaking invited, unconsented or unrelated people", async () => {
@@ -91,7 +110,7 @@ describe("authenticated leased reasoning queue (simulation)", () => {
       return joinedId!;
     });
     await t.mutation(internal.reasoningJobs.enqueue, enqueueArgs);
-    const claimed = (await t.mutation(api.reasoningJobs.claim, credentials))!;
+    const claimed = (await t.mutation(api.reasoningJobs.claim, { ...credentials, contextProtocol: 2 }))!;
     expect(JSON.parse(claimed.packetJson)).toMatchObject({ relevantParticipants: [
       { userId: ids.userId, displayName: "Alex", role: "organizer" },
       { userId: joinedId, displayName: "Caleb", role: "member" },
@@ -108,7 +127,7 @@ describe("authenticated leased reasoning queue (simulation)", () => {
   it("requires lease owner and token for completion", async () => {
     const { t, enqueueArgs, decisionJson, calls } = await fixture();
     await t.mutation(internal.reasoningJobs.enqueue, enqueueArgs);
-    const job = (await t.mutation(api.reasoningJobs.claim, credentials))!;
+    const job = (await t.mutation(api.reasoningJobs.claim, { ...credentials, contextProtocol: 2 }))!;
     await expect(t.mutation(api.reasoningJobs.complete, { ...credentials, workerId: "stranger", jobId: job.jobId, leaseToken: job.leaseToken, decisionJson })).rejects.toThrow("LEASE_REJECTED");
     await expect(t.mutation(api.reasoningJobs.complete, { ...credentials, jobId: job.jobId, leaseToken: "wrong", decisionJson })).rejects.toThrow("LEASE_REJECTED");
     expect(calls).toHaveLength(0);
@@ -116,7 +135,7 @@ describe("authenticated leased reasoning queue (simulation)", () => {
   it("delegates once to Domain and makes duplicate completion inert", async () => {
     const { t, enqueueArgs, decisionJson, calls } = await fixture();
     await t.mutation(internal.reasoningJobs.enqueue, enqueueArgs);
-    const job = (await t.mutation(api.reasoningJobs.claim, credentials))!;
+    const job = (await t.mutation(api.reasoningJobs.claim, { ...credentials, contextProtocol: 2 }))!;
     const args = { ...credentials, jobId: job.jobId, leaseToken: job.leaseToken, decisionJson };
     await t.mutation(api.reasoningJobs.complete, args);
     await t.mutation(api.reasoningJobs.complete, args);
@@ -127,7 +146,7 @@ describe("authenticated leased reasoning queue (simulation)", () => {
   it.each(["invalid-json", "extra-action", "different-event"])("fails closed on %s model output", async (kind) => {
     const { t, enqueueArgs, decisionJson, calls } = await fixture();
     await t.mutation(internal.reasoningJobs.enqueue, enqueueArgs);
-    const job = (await t.mutation(api.reasoningJobs.claim, credentials))!;
+    const job = (await t.mutation(api.reasoningJobs.claim, { ...credentials, contextProtocol: 2 }))!;
     const decision = JSON.parse(decisionJson) as Record<string, unknown>;
     const invalid = kind === "invalid-json" ? "{" : JSON.stringify(kind === "extra-action" ? { ...decision, actions: [{ type: "EXECUTE_CODE", code: "ignore permissions" }] } : { ...decision, eventCandidateId: "private_event" });
     await t.mutation(api.reasoningJobs.complete, { ...credentials, jobId: job.jobId, leaseToken: job.leaseToken, decisionJson: invalid });
@@ -138,7 +157,7 @@ describe("authenticated leased reasoning queue (simulation)", () => {
   it("rejects a member's organizer-only task edit before Domain", async () => {
     const { t, enqueueArgs, decisionJson, calls } = await fixture(true, "member");
     await t.mutation(internal.reasoningJobs.enqueue, enqueueArgs);
-    const job = (await t.mutation(api.reasoningJobs.claim, credentials))!;
+    const job = (await t.mutation(api.reasoningJobs.claim, { ...credentials, contextProtocol: 2 }))!;
     const edit = JSON.stringify({ ...JSON.parse(decisionJson), actions: [{ type: "PROPOSE_TASK_CHANGE", taskRef: "setup", field: "location", newValue: "fixture campus" }] });
     await t.mutation(api.reasoningJobs.complete, { ...credentials, jobId: job.jobId, leaseToken: job.leaseToken, decisionJson: edit });
     expect(calls).toHaveLength(0);
@@ -147,7 +166,7 @@ describe("authenticated leased reasoning queue (simulation)", () => {
   it.each(["task", "event", "membership"])("rechecks %s changes after inference", async (changed) => {
     const { t, ids, enqueueArgs, decisionJson, calls } = await fixture();
     await t.mutation(internal.reasoningJobs.enqueue, enqueueArgs);
-    const job = (await t.mutation(api.reasoningJobs.claim, credentials))!;
+    const job = (await t.mutation(api.reasoningJobs.claim, { ...credentials, contextProtocol: 2 }))!;
     await t.run(async (ctx) => {
       if (changed === "task") await ctx.db.patch(ids.taskId, { version: 2 });
       else if (changed === "event") await ctx.db.patch(ids.eventId, { version: 2 });
@@ -160,7 +179,7 @@ describe("authenticated leased reasoning queue (simulation)", () => {
   it("reports Domain unavailability without claiming a proposal", async () => {
     const { t, enqueueArgs, decisionJson } = await fixture(false);
     await t.mutation(internal.reasoningJobs.enqueue, enqueueArgs);
-    const job = (await t.mutation(api.reasoningJobs.claim, credentials))!;
+    const job = (await t.mutation(api.reasoningJobs.claim, { ...credentials, contextProtocol: 2 }))!;
     await t.mutation(api.reasoningJobs.complete, { ...credentials, jobId: job.jobId, leaseToken: job.leaseToken, decisionJson });
     expect(await t.run((ctx) => ctx.db.get(job.jobId))).toMatchObject({ status: "failed", failureCategory: "DOMAIN_UNAVAILABLE" });
     expect(await t.run((ctx) => ctx.db.query("proposals").collect())).toHaveLength(0);
@@ -184,9 +203,9 @@ describe("authenticated leased reasoning queue (simulation)", () => {
   it("reclaims an expired lease with a new token and rejects the old completion", async () => {
     const { t, enqueueArgs, decisionJson, calls } = await fixture();
     await t.mutation(internal.reasoningJobs.enqueue, enqueueArgs);
-    const first = (await t.mutation(api.reasoningJobs.claim, credentials))!;
+    const first = (await t.mutation(api.reasoningJobs.claim, { ...credentials, contextProtocol: 2 }))!;
     vi.setSystemTime(Date.now() + 45_001);
-    const second = (await t.mutation(api.reasoningJobs.claim, credentials))!;
+    const second = (await t.mutation(api.reasoningJobs.claim, { ...credentials, contextProtocol: 2 }))!;
     expect(second.leaseToken).not.toBe(first.leaseToken);
     await expect(t.mutation(api.reasoningJobs.complete, { ...credentials, jobId: first.jobId, leaseToken: first.leaseToken, decisionJson })).rejects.toThrow("LEASE_REJECTED");
     await t.mutation(api.reasoningJobs.complete, { ...credentials, jobId: second.jobId, leaseToken: second.leaseToken, decisionJson });
@@ -195,11 +214,11 @@ describe("authenticated leased reasoning queue (simulation)", () => {
   it("caps retries at two claims and sends one fallback", async () => {
     const { t, enqueueArgs } = await fixture();
     const jobId = await t.mutation(internal.reasoningJobs.enqueue, enqueueArgs);
-    await t.mutation(api.reasoningJobs.claim, credentials);
+    await t.mutation(api.reasoningJobs.claim, { ...credentials, contextProtocol: 2 });
     vi.setSystemTime(Date.now() + 45_001);
-    await t.mutation(api.reasoningJobs.claim, credentials);
+    await t.mutation(api.reasoningJobs.claim, { ...credentials, contextProtocol: 2 });
     vi.setSystemTime(Date.now() + 45_001);
-    expect(await t.mutation(api.reasoningJobs.claim, credentials)).toBeNull();
+    expect(await t.mutation(api.reasoningJobs.claim, { ...credentials, contextProtocol: 2 })).toBeNull();
     expect(await t.run((ctx) => ctx.db.get(jobId))).toMatchObject({ status: "expired", attempts: 2 });
     expect(await t.run((ctx) => ctx.db.query("outboundMessages").collect())).toHaveLength(1);
   });
@@ -216,14 +235,14 @@ describe("authenticated leased reasoning queue (simulation)", () => {
       await ctx.db.insert("tasks", { eventId, title: "Private budget", capacity: 1, status: "unassigned", version: 1 });
     });
     await t.mutation(internal.reasoningJobs.enqueue, enqueueArgs);
-    const job = (await t.mutation(api.reasoningJobs.claim, credentials))!;
+    const job = (await t.mutation(api.reasoningJobs.claim, { ...credentials, contextProtocol: 2 }))!;
     expect(job.packetJson).not.toContain("Private budget");
     expect(job.packetJson).not.toContain("Unrelated private event");
   });
   it("does not allow a member to cancel another participant through valid JSON", async () => {
     const { t, enqueueArgs, decisionJson, calls } = await fixture(true, "member");
     await t.mutation(internal.reasoningJobs.enqueue, enqueueArgs);
-    const job = (await t.mutation(api.reasoningJobs.claim, credentials))!;
+    const job = (await t.mutation(api.reasoningJobs.claim, { ...credentials, contextProtocol: 2 }))!;
     const decision = { ...JSON.parse(decisionJson), actions: [{ type: "REPORT_UNAVAILABILITY", participantRef: "Maya" }] };
     await t.mutation(api.reasoningJobs.complete, { ...credentials, jobId: job.jobId, leaseToken: job.leaseToken, decisionJson: JSON.stringify(decision) });
     expect(calls).toHaveLength(0);
@@ -233,17 +252,17 @@ describe("authenticated leased reasoning queue (simulation)", () => {
     await t.run((ctx) => ctx.db.patch(ids.messageId, { processingState: "received" }));
     await t.mutation(internal.commands.route, { messageId: ids.messageId });
     expect(await t.run((ctx) => ctx.db.query("reasoningJobs").collect())).toHaveLength(1);
-    const job = (await t.mutation(api.reasoningJobs.claim, credentials))!;
+    const job = (await t.mutation(api.reasoningJobs.claim, { ...credentials, contextProtocol: 2 }))!;
     await t.mutation(api.reasoningJobs.complete, { ...credentials, jobId: job.jobId, leaseToken: job.leaseToken, decisionJson });
     expect(calls).toHaveLength(1);
     const replies = await t.run((ctx) => ctx.db.query("outboundMessages").collect());
     expect(replies).toHaveLength(1);
-    expect(replies[0]!.content).toContain("No assignment has changed yet");
+    expect(replies[0]!.content).toBe("Got it. I’ll check the plan.");
   });
   it("rejects a schema-valid unsupported decision that tries to change state", async () => {
     const { t, enqueueArgs, decisionJson, calls } = await fixture();
     await t.mutation(internal.reasoningJobs.enqueue, enqueueArgs);
-    const job = (await t.mutation(api.reasoningJobs.claim, credentials))!;
+    const job = (await t.mutation(api.reasoningJobs.claim, { ...credentials, contextProtocol: 2 }))!;
     const decision = { ...JSON.parse(decisionJson), confidenceClass: "unsupported" };
     await t.mutation(api.reasoningJobs.complete, { ...credentials, jobId: job.jobId, leaseToken: job.leaseToken, decisionJson: JSON.stringify(decision) });
     expect(calls).toHaveLength(0);

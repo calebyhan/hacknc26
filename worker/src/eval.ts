@@ -30,7 +30,7 @@ try {
     if (live) console.info(JSON.stringify({ progress: result.id, passed, ...(errorCategory ? { errorCategory } : {}), ...(actionTypes ? { actionTypes } : {}) }));
   }
   const timings = results.map((result) => result.latencyMs).sort((a, b) => a - b);
-  console.info(JSON.stringify({ simulation: !live, provider: live ? process.env.RALLY_PROVIDER ?? "claude" : "fake", note: live ? "Synthetic inputs with real inference; grade checks scope and action types, not Domain execution" : "Scripted harness validation only; no model accuracy measurement", passed: results.filter((result) => result.passed).length, total: results.length, p50Ms: timings[Math.ceil(timings.length * 0.5) - 1], p95Ms: timings[Math.ceil(timings.length * 0.95) - 1], results }, null, 2));
+  console.info(JSON.stringify({ simulation: !live, provider: live ? process.env.RALLY_PROVIDER ?? "claude" : "fake", note: live ? "Synthetic inputs with real inference; grade checks scope/action types plus exact task/person in targeted regressions, not Domain execution" : "Scripted harness validation only; no model accuracy measurement", passed: results.filter((result) => result.passed).length, total: results.length, p50Ms: timings[Math.ceil(timings.length * 0.5) - 1], p95Ms: timings[Math.ceil(timings.length * 0.95) - 1], results }, null, 2));
   if (results.some((result) => !result.passed)) process.exitCode = 1;
 } catch {
   console.error("Evaluation unavailable. Check RALLY_PROVIDER, RALLY_MODEL and provider login; no credential values were logged.");

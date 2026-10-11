@@ -8,6 +8,9 @@ import { audit, createEvent, createTask } from "./lib/domain";
 import { createContactInvitations, createOrganizerInvitation } from "./lib/invitations";
 import { approveProposal } from "./lib/proposalEngine";
 import { contentDigest, openEnvelope, senderFor } from "./lib/messaging";
+import { handleEventClosure } from "./lib/eventClosure";
+import { handlePhoneConversation } from "./lib/phoneConversation";
+import { formatLocalDate } from "../packages/shared/phoneConversation";
 
 async function organizer(ctx: MutationCtx, user: Doc<"users">, eventId: Id<"events">) {
   const member = await ctx.db.query("memberships").withIndex("by_event_user", q => q.eq("eventId", eventId).eq("userId", user._id)).unique();
@@ -30,15 +33,18 @@ export const execute = internalMutation({
   handler: async (ctx, { messageId }): Promise<boolean> => {
     const message = await ctx.db.get(messageId);
     if (!message || message.provider !== "spectrum" || message.processingState !== "processing" || message.receivedAt < Date.now() - 300_000) throw new Error("UNAUTHORIZED");
-    const command = parsePhoneSetupCommand((await openEnvelope(message)).text);
-    if (!command) return false;
+    const text = (await openEnvelope(message)).text;
     const user = await senderFor(ctx, message);
     if (!user) throw new Error("UNAUTHORIZED");
-    if (user.messagingState !== "active") return true;
-    const send = (content: string) => ctx.runMutation(internal.outbox.enqueue, { idempotencyKey: `inbound:${messageId}:setup`, recipientUserId: user._id, content, directReplyToMessageId: messageId });
-    if (command.type === "INVALID") { await send(phoneSetupUsageCopy); return true; }
+    if (user.messagingState !== "active") return false;
     const recent = await ctx.db.query("inboundMessages").withIndex("by_sender", q => q.eq("senderPhone", message.senderPhone)).order("desc").take(31);
     if (recent.filter(m => m.receivedAt > Date.now() - 60_000).length > 30) throw new Error("RATE_LIMITED");
+    if (await handleEventClosure(ctx, user, message, text)) return true;
+    if (await handlePhoneConversation(ctx, user, message, text)) return true;
+    const command = parsePhoneSetupCommand(text);
+    if (!command) return false;
+    const send = (content: string) => ctx.runMutation(internal.outbox.enqueue, { idempotencyKey: `inbound:${messageId}:setup`, recipientUserId: user._id, content, directReplyToMessageId: messageId });
+    if (command.type === "INVALID") { await send(phoneSetupUsageCopy); return true; }
     let eventId: Id<"events">, content: string;
     switch (command.type) {
       case "CREATE_EVENT": {
@@ -49,7 +55,7 @@ export const execute = internalMutation({
         const event = (await ctx.db.get(eventId))!;
         const membership = (await ctx.db.query("memberships").withIndex("by_event_user", q => q.eq("eventId", eventId).eq("userId", user._id)).unique())!;
         const invitation = await createOrganizerInvitation(ctx, user, membership, eventId, `phone:${messageId}`);
-        content = `Draft: ${event.title}\nWhen: ${new Date(event.startsAt).toISOString()} (${event.timezone})${event.location ? `\nWhere: ${event.location}` : ""}\nNothing is scheduled yet.\n\n1. Enable your event notifications. Send this as its own message:\nJOIN ${invitation.code}\n\n2. After joining, review the details. If correct, send:\nCONFIRM ${eventId} ${event.version}\n\nThis JOIN code is for your phone only and expires in 24 hours. After confirming, invite each friend separately:\nINVITE ${eventId} | <friend name> | <their phone in +country format>`;
+        content = `Draft: ${event.title}\nWhen: ${formatLocalDate(event.startsAt, event.timezone)}${event.location ? `\nWhere: ${event.location}` : ""}\nNothing is scheduled yet.\n\n1. Enable your event notifications. Send this as its own message:\nJOIN ${invitation.code}\n\n2. After joining, review the details. If correct, send:\nCONFIRM ${eventId} ${event.version}\n\nThis JOIN code is for your phone only and expires in 24 hours. After confirming, text "invite someone" to invite each friend separately.`;
         break;
       }
       case "CONFIRM_EVENT": {
@@ -59,13 +65,13 @@ export const execute = internalMutation({
         if (event.status !== "draft" || event.version !== command.expectedVersion || event.startsAt <= Date.now()) throw new Error("STALE_EVENT");
         await ctx.db.patch(id, { status: "scheduled", version: event.version + 1 });
         await audit(ctx, id, user._id, "event_confirmed", `event-confirm:${id}:${event.version}`, { version: event.version + 1, sourceMessageId: messageId });
-        eventId = id; content = `${event.title} is scheduled. No task is assigned yet. Add a task with TASK ${id} | <title> | <start ISO with offset> | <end ISO with offset>.`; break;
+        eventId = id; content = `${event.title} is scheduled for ${formatLocalDate(event.startsAt, event.timezone)}. No task is assigned yet. Text "add a task" to set up a task or "invite someone" to add a friend.`; break;
       }
       case "CREATE_TASK": {
         const event = await ownedEvent(ctx, user, command.eventRef);
         if (event.status !== "scheduled" || command.windowStart <= Date.now()) throw new Error("INVALID_TASK_TIME");
-        const taskId = await createTask(ctx, user._id, { eventId: event._id, title: command.title, windowStart: command.windowStart, windowEnd: command.windowEnd, expectedEventVersion: event.version, idempotencyKey: `phone:${messageId}` });
-        eventId = event._id; content = `${event.title}: ${command.title} created (${new Date(command.windowStart).toISOString()} to ${new Date(command.windowEnd).toISOString()}). It is unassigned. Task ${taskId}.`; break;
+        const taskId = await createTask(ctx, user._id, { eventId: event._id, title: command.title, windowStart: command.windowStart, windowEnd: command.windowEnd, ...(command.capacity ? { capacity: command.capacity } : {}), expectedEventVersion: event.version, idempotencyKey: `phone:${messageId}` });
+        eventId = event._id; content = `${event.title}: ${command.title} created (${formatLocalDate(command.windowStart, event.timezone)} to ${formatLocalDate(command.windowEnd, event.timezone)}), needing ${command.capacity ?? 1} ${(command.capacity ?? 1) === 1 ? "person" : "people"}. It is unassigned. Task ${taskId}.`; break;
       }
       case "INVITE_CONTACT": {
         const event = await ownedEvent(ctx, user, command.eventRef);
@@ -79,7 +85,13 @@ export const execute = internalMutation({
         await approveProposal(ctx, proposal._id, user._id, messageId);
         const current = (await ctx.db.get(proposal._id))!;
         eventId = proposal.eventId;
-        content = current.state === "pending" && current.organizerApprovedAt !== undefined ? "Organizer approval recorded. The participant still needs to accept; no assignment is confirmed." : "That offer is closed or no longer needs approval. No new assignment was made."; break;
+        if (current.state === "pending" && current.organizerApprovedAt !== undefined && proposal.organizerApprovedAt === undefined) {
+          if (proposal.targetUserId === user._id) return true;
+          const target = proposal.targetUserId ? await ctx.db.get(proposal.targetUserId) : null;
+          const task = proposal.targetTaskId ? await ctx.db.get(proposal.targetTaskId) : null;
+          content = `Organizer approval recorded. Waiting for ${target?.displayName ?? "the participant"} to accept ${task?.title ?? "the task"}; no assignment is confirmed.`;
+        } else content = "That offer is closed or no longer needs approval. No new assignment was made.";
+        break;
       }
     }
     // Store a hash, never a second plaintext invitation code. Only this verified

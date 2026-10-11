@@ -13,4 +13,9 @@ describe("deterministic phone setup grammar", () => {
     expect(parsePhoneSetupCommand("CONFIRM event-id 1")).toEqual({ type: "CONFIRM_EVENT", eventId: "event-id", expectedVersion: 1 });
     expect(parsePhoneSetupCommand("APPROVE proposal-id")).toEqual({ type: "APPROVE_PROPOSAL", proposalId: "proposal-id" });
   });
+  it("accepts formatted country-code phones and an optional raw task staffing count", () => {
+    expect(parsePhoneSetupCommand("INVITE Picnic | Maya | +1 (555) 000-0002")).toEqual({ type: "INVITE_CONTACT", eventRef: "Picnic", displayName: "Maya", phoneE164: "+15550000002" });
+    expect(parsePhoneSetupCommand("TASK Picnic | setup | 2026-10-12T17:00:00Z | 2026-10-12T18:00:00Z | 3")).toMatchObject({ type: "CREATE_TASK", capacity: 3 });
+    for (const capacity of ["0", "21", "2.5", "many"]) expect(parsePhoneSetupCommand(`TASK Picnic | setup | 2026-10-12T17:00:00Z | 2026-10-12T18:00:00Z | ${capacity}`)).toEqual({ type: "INVALID" });
+  });
 });

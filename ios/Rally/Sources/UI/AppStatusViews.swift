@@ -24,6 +24,10 @@ extension EventMessagingStatus {
 }
 
 extension RallyRoute {
+    func destination(at now: Date) -> String? {
+        guard messagesURL(at: now) != nil, case .available(let destination, _) = self else { return nil }
+        return destination
+    }
     /// Apple's documented sms:<phone> form opens composition, without message
     /// text or an automatic send. Reject every value outside strict E.164.
     func messagesURL(at now: Date = Date()) -> URL? {

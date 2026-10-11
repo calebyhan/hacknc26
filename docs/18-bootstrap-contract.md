@@ -66,7 +66,7 @@ Each function declares argument and return validators. Typed source signatures a
 | `identity.setMessagingState` | `{messageId,state}` → null |
 | `outbox.enqueue` | `{idempotencyKey,recipientUserId,eventId?,proposalId?,content,directReplyToMessageId?}` → outbound ID |
 | `reasoningJobs.enqueue` | `{messageId,eventId,contextVersion,taskVersions:[{taskId,version}]}` → job ID; event/version explicitly nullable for unscoped drafting/clarification |
-| `reasoningJobs.claim` | `{workerToken,workerId}` → null or `{jobId,leaseToken,leaseUntil,contextVersion,taskVersions,packetJson}` |
+| `reasoningJobs.claim` | `{workerToken,workerId,contextProtocol?:2}` → null or `{jobId,leaseToken,leaseUntil,contextVersion,taskVersions,packetJson}` |
 | `reasoningJobs.complete` | `{workerToken,workerId,jobId,leaseToken,decisionJson}` → null |
 | `reasoningJobs.heartbeat` | `{workerToken,workerId,modelId?,lastError?}` → null |
 | `context.buildPacket` | `{jobId}` → `{packetJson}` |
@@ -78,6 +78,7 @@ Implementation rules for owning lanes:
 
 - Public app operations must derive identity from `ctx.auth` and verify membership/role. Internal actor IDs are evidence references, never independent proof of identity.
 - Public worker mutations must verify the server-side credential before data access, then verify claim ownership, lease token/expiry, sender membership and stored versions. The bootstrap's token arguments are not implemented authentication.
+- Worker context rollout: omitted `contextProtocol` receives the exact legacy strict packet shape; `2` receives rich task/capacity/time/clarification fields. Only `claim` accepts this optional argument; heartbeat and completion signatures are unchanged. Legacy presentation narrows verified task-choice replies to that task and includes bounded, labeled server facts in `incomingText`, preserving the original text verbatim. If facts do not fit the 16k/64KiB limits they are omitted, never truncating participant text. Backend authorization and source/version validation remain identical.
 - `decisionJson`, `packetJson` and `taskChangeJson` must pass the shared Zod schemas after JSON parsing. Their Convex string validators are wire-format checks only.
 - Job event scope, event/task versions and unique lease token persist independently of model output. Explicit null-scope jobs permit only first-event draft, clarification or no action, and contain no task-version snapshot. They cannot change existing events.
 - Direct-reply outbox evidence persists so the dispatcher can recheck the narrowly permitted onboarding/STOP reply at send time.

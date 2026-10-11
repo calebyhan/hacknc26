@@ -1,0 +1,158 @@
+{
+  "inputType": "Synthetic fixtures only; real inference through the existing constrained subscription adapter",
+  "provider": "codex",
+  "model": "gpt-5.6-luna",
+  "startedAt": "2026-10-11T05:02:38.154Z",
+  "baseline": {
+    "log": "/tmp/rally-polish-live-eval.log",
+    "passed": 27,
+    "total": 29,
+    "failures": [
+      "24",
+      "29"
+    ],
+    "originalRawDecisionsCaptured": false
+  },
+  "note": "One targeted retest per case after a narrow prompt clarification. Original corpus and grading unchanged. This does not replace the original 27/29 full sweep or establish general model reliability.",
+  "promptSha256": "44c97b87cd476bc6c6a2d599ff3b0a28e6ea109bc5f46a70361992d9d227d49f",
+  "results": [
+    {
+      "id": "24",
+      "passed": true,
+      "latencyMs": 4785,
+      "actionTypes": [
+        "PROPOSE_ASSIGNMENT"
+      ],
+      "decision": {
+        "schemaVersion": 1,
+        "eventCandidateId": "fixture_e_627",
+        "confidenceClass": "clear",
+        "needsClarification": false,
+        "clarificationQuestion": null,
+        "actions": [
+          {
+            "type": "PROPOSE_ASSIGNMENT",
+            "taskRef": "fixture_t_207",
+            "toParticipantRef": "fixture_p_812"
+          }
+        ],
+        "responseStyle": "concise",
+        "reasonCodes": [
+          "EXACT_TASK_IDENTIFIED",
+          "PENDING_OFFER_NOT_ACTIVE_ASSIGNMENT"
+        ]
+      }
+    },
+    {
+      "id": "29",
+      "passed": true,
+      "latencyMs": 4622,
+      "actionTypes": [
+        "ASK_CLARIFICATION"
+      ],
+      "decision": {
+        "schemaVersion": 1,
+        "eventCandidateId": "fixture_e_428",
+        "confidenceClass": "ambiguous",
+        "needsClarification": true,
+        "clarificationQuestion": "Should Yewon join Caleb on cleanup, or replace Caleb?",
+        "actions": [
+          {
+            "type": "ASK_CLARIFICATION",
+            "question": "Should Yewon join Caleb on cleanup, or replace Caleb?"
+          }
+        ],
+        "responseStyle": "concise",
+        "reasonCodes": [
+          "AMBIGUOUS_COVER_INTENT"
+        ]
+      }
+    },
+    {
+      "id": "25",
+      "passed": true,
+      "latencyMs": 8084,
+      "actionTypes": [
+        "PROPOSE_ASSIGNMENT"
+      ],
+      "decision": {
+        "schemaVersion": 1,
+        "eventCandidateId": "fixture_e_627",
+        "confidenceClass": "clear",
+        "needsClarification": false,
+        "clarificationQuestion": null,
+        "actions": [
+          {
+            "type": "PROPOSE_ASSIGNMENT",
+            "taskRef": "fixture_t_207",
+            "toParticipantRef": "fixture_p_812"
+          }
+        ],
+        "responseStyle": "concise",
+        "reasonCodes": [
+          "SELECTED_TASK",
+          "PENDING_OFFER_REPLACED"
+        ]
+      }
+    },
+    {
+      "id": "26",
+      "passed": true,
+      "latencyMs": 5138,
+      "actionTypes": [
+        "PROPOSE_ASSIGNMENT"
+      ],
+      "decision": {
+        "schemaVersion": 1,
+        "eventCandidateId": "fixture_e_428",
+        "confidenceClass": "clear",
+        "needsClarification": false,
+        "clarificationQuestion": null,
+        "actions": [
+          {
+            "type": "PROPOSE_ASSIGNMENT",
+            "taskRef": "fixture_t_682",
+            "toParticipantRef": "fixture_p_573"
+          }
+        ],
+        "responseStyle": "concise",
+        "reasonCodes": [
+          "ADDITIVE_ASSIGNMENT",
+          "CAPACITY_AVAILABLE",
+          "EXACT_PARTICIPANT_MATCH"
+        ]
+      }
+    },
+    {
+      "id": "27",
+      "passed": true,
+      "latencyMs": 6166,
+      "actionTypes": [
+        "PROPOSE_REASSIGNMENT"
+      ],
+      "decision": {
+        "schemaVersion": 1,
+        "eventCandidateId": "fixture_e_428",
+        "confidenceClass": "clear",
+        "needsClarification": false,
+        "clarificationQuestion": null,
+        "actions": [
+          {
+            "type": "PROPOSE_REASSIGNMENT",
+            "taskRef": "fixture_t_682",
+            "fromParticipantRef": "fixture_p_194",
+            "toParticipantRef": "fixture_p_573"
+          }
+        ],
+        "responseStyle": "concise",
+        "reasonCodes": [
+          "EXPLICIT_REPLACEMENT",
+          "EXACT_TASK_MATCH"
+        ]
+      }
+    }
+  ],
+  "finishedAt": "2026-10-11T05:03:07.066Z",
+  "passed": 5,
+  "total": 5
+}

@@ -128,6 +128,25 @@ export type ContactSelection = z.infer<typeof ContactSelectionSchema>;
 export type Invitation = z.infer<typeof InvitationSchema>;
 
 export const IdempotencyKeySchema = z.string().trim().min(1).max(128);
+/** Internal evidence only: never include this snapshot in an event's public read. */
+export const OverlapSnapshotSchema = z.strictObject({
+  eventVersion: VersionSchema,
+  taskVersion: VersionSchema,
+  windowStart: TimestampSchema,
+  windowEnd: TimestampSchema,
+  conflicts: z.array(z.strictObject({
+    commitmentId: IdentifierSchema, taskId: IdentifierSchema, taskVersion: VersionSchema,
+    windowStart: TimestampSchema, windowEnd: TimestampSchema,
+  })),
+});
+export const OverlapWarningSchema = z.strictObject({
+  snapshot: OverlapSnapshotSchema,
+  sourceMessageId: IdentifierSchema,
+  warnedAt: TimestampSchema,
+  confirmedByMessageId: IdentifierSchema.optional(),
+});
+export type OverlapSnapshot = z.infer<typeof OverlapSnapshotSchema>;
+export type OverlapWarning = z.infer<typeof OverlapWarningSchema>;
 export const EventCreateInputSchema = z.strictObject({
   title: TextReferenceSchema, kind: z.enum(["event", "project"]), startsAt: TimestampSchema,
   timezone: TextReferenceSchema.refine(value => { try { new Intl.DateTimeFormat("en", { timeZone: value }); return true; } catch { return false; } }, "Invalid timezone"),

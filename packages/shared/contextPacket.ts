@@ -6,11 +6,14 @@ export const ContextEventSchema = z.strictObject({
   id: IdentifierSchema,
   title: TextReferenceSchema,
   startsAt: IsoDateTimeSchema,
+  timezone: TextReferenceSchema.optional(),
 });
 export const ContextTaskSchema = z.strictObject({
   id: IdentifierSchema,
   name: TextReferenceSchema,
   activeAssigneeIds: z.array(IdentifierSchema),
+  capacity: z.number().int().positive().optional(),
+  window: z.strictObject({ startsAt: IsoDateTimeSchema, endsAt: IsoDateTimeSchema }).optional(),
   status: TaskStatusSchema,
   version: VersionSchema,
 });
@@ -25,6 +28,7 @@ export const ContextPendingProposalSchema = z.strictObject({
   type: ProposalTypeSchema,
   targetUserId: IdentifierSchema,
   targetTaskId: IdentifierSchema.optional(),
+  taskName: TextReferenceSchema.optional(),
   expiresAt: IsoDateTimeSchema,
   eventVersionAtCreation: VersionSchema,
   taskVersionAtCreation: VersionSchema.optional(),
@@ -33,6 +37,9 @@ export const ContextPacketSchema = z.strictObject({
   messageId: IdentifierSchema,
   sender: z.strictObject({ userId: IdentifierSchema, role: MemberRoleSchema }),
   recentEventFocusId: IdentifierSchema.nullable(),
+  recentTaskFocusId: IdentifierSchema.nullable().optional(),
+  selectedTaskId: IdentifierSchema.nullable().optional(),
+  currentTime: IsoDateTimeSchema.optional(),
   candidateEvents: z.array(ContextEventSchema).max(20),
   relevantTasks: z.array(ContextTaskSchema).max(100),
   // Additive for older fixture packets. Producers include only joined people

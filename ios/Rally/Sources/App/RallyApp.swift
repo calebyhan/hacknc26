@@ -11,6 +11,7 @@ struct RallyApp: App {
             AuthGate()
                 .environmentObject(session)
                 .tint(RallyStyle.accent)
+                .task { await session.restoreSession() }
         }
     }
 }
@@ -58,7 +59,7 @@ struct AuthGate: View {
                             } label: {
                                 HStack {
                                     if session.isSigningIn { ProgressView() }
-                                    Text(session.isRegistering ? "Preparing your account…" : session.canRetryRegistration ? "Retry account setup" : "Sign in")
+                                    Text(session.isRestoring ? "Restoring your session…" : session.isRegistering ? "Preparing your account…" : session.canRetryRegistration ? "Retry account setup" : "Sign in")
                                         .frame(maxWidth: .infinity)
                                 }.padding(.vertical, 8)
                             }

@@ -1,0 +1,60 @@
+{
+  "inputType": "synthetic fixture 15 only",
+  "baseline": {
+    "log": "original 25-case product live evaluation; source log /tmp/rally-product-live-eval.log",
+    "caseId": "15",
+    "errorCategory": "INVALID_DECISION",
+    "rawDecisionCaptured": false
+  },
+  "model": "gpt-5.6-luna",
+  "provider": "codex",
+  "startedAt": "2026-10-11T04:33:02.095Z",
+  "attempts": [
+    {
+      "exitCode": 0,
+      "eventTypes": [
+        {
+          "type": "thread.started"
+        },
+        {
+          "type": "item.completed",
+          "itemType": "error"
+        },
+        {
+          "type": "turn.started"
+        },
+        {
+          "type": "item.completed",
+          "itemType": "agent_message"
+        },
+        {
+          "type": "turn.completed"
+        }
+      ],
+      "agentMessageCount": 1,
+      "schemaValid": true,
+      "actionTypes": [
+        "RECORD_AVAILABILITY"
+      ],
+      "actionKeys": [
+        [
+          "type",
+          "kind",
+          "window"
+        ]
+      ],
+      "confidenceClass": "clear",
+      "needsClarification": false,
+      "windows": [
+        {
+          "startsAt": "2026-10-17T13:00:00.000Z",
+          "endsAt": "2026-10-17T14:00:00.000Z"
+        }
+      ]
+    }
+  ],
+  "passed": true,
+  "finishedAt": "2026-10-11T04:33:06.596Z",
+  "note": "Separate diagnostic only; does not replace the original 25-case sweep or erase its case 15 failure. One fresh synthetic inference passed without code, prompt, model or fixture changes. Original raw stdout was not retained, so the initial rejection cause is unknown.",
+  "safety": "Existing constrained adapter and subscription login; no backend writes, live participant messages, tools, or provider/model changes."
+}

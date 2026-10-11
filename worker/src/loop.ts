@@ -40,7 +40,6 @@ export async function processOneJob(backend: QueueBackend, provider: InferencePr
 }
 
 export async function runWorker(backend: QueueBackend, provider: InferenceProvider, options: { signal: AbortSignal; report?: (category: string) => void }): Promise<void> {
-  let idleMs = 10_000;
   let heartbeatAt = 0;
   while (!options.signal.aborted) {
     if (Date.now() >= heartbeatAt) {
@@ -49,8 +48,10 @@ export async function runWorker(backend: QueueBackend, provider: InferenceProvid
     }
     const result = await processOneJob(backend, provider);
     if (result === "error") { options.report?.("WORKER_ERROR"); try { await backend.heartbeat("WORKER_ERROR"); } catch { /* No secret/error payload is logged. */ } }
-    const wait = result === "processed" ? 1_000 : result === "error" ? 30_000 : idleMs;
-    idleMs = result === "processed" ? 10_000 : Math.min(30_000, idleMs * 2);
+    // Interactive demo worker: keep idle pickup within two seconds plus network
+    // latency. This costs at most 43,200 idle claims/day per worker; stop it when
+    // unused. Backend/inference errors still back off, and jobs stay sequential.
+    const wait = result === "processed" ? 1_000 : result === "error" ? 30_000 : 2_000;
     await pause(wait, options.signal);
   }
 }

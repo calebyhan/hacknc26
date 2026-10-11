@@ -1,0 +1,274 @@
+{
+  "simulation": false,
+  "provider": "codex",
+  "note": "Synthetic inputs with real inference; grade checks scope/action types plus exact task/person in targeted regressions, not Domain execution",
+  "passed": 27,
+  "total": 29,
+  "p50Ms": 5593,
+  "p95Ms": 15256,
+  "results": [
+    {
+      "id": "01",
+      "expected": "correct proposal",
+      "passed": true,
+      "latencyMs": 4990,
+      "actionTypes": [
+        "REPORT_UNAVAILABILITY",
+        "PROPOSE_ASSIGNMENT"
+      ]
+    },
+    {
+      "id": "02",
+      "expected": "correct proposal",
+      "passed": true,
+      "latencyMs": 7277,
+      "actionTypes": [
+        "REPORT_UNAVAILABILITY"
+      ]
+    },
+    {
+      "id": "03",
+      "expected": "clarify",
+      "passed": true,
+      "latencyMs": 4004,
+      "actionTypes": [
+        "ASK_CLARIFICATION"
+      ]
+    },
+    {
+      "id": "04",
+      "expected": "correct proposal",
+      "passed": true,
+      "latencyMs": 4179,
+      "actionTypes": [
+        "REPORT_UNAVAILABILITY"
+      ]
+    },
+    {
+      "id": "05",
+      "expected": "correct proposal",
+      "passed": true,
+      "latencyMs": 5257,
+      "actionTypes": [
+        "RECORD_SELF_COMMITMENT"
+      ]
+    },
+    {
+      "id": "06",
+      "expected": "clarify",
+      "passed": true,
+      "latencyMs": 4767,
+      "actionTypes": [
+        "ASK_CLARIFICATION"
+      ]
+    },
+    {
+      "id": "07",
+      "expected": "clarify",
+      "passed": true,
+      "latencyMs": 4680,
+      "actionTypes": [
+        "ASK_CLARIFICATION"
+      ]
+    },
+    {
+      "id": "08",
+      "expected": "reject",
+      "passed": true,
+      "latencyMs": 4487,
+      "actionTypes": [
+        "NO_ACTION"
+      ]
+    },
+    {
+      "id": "09",
+      "expected": "clarify",
+      "passed": true,
+      "latencyMs": 6412,
+      "actionTypes": [
+        "ASK_CLARIFICATION"
+      ]
+    },
+    {
+      "id": "10",
+      "expected": "reject",
+      "passed": true,
+      "latencyMs": 6276,
+      "actionTypes": [
+        "NO_ACTION"
+      ]
+    },
+    {
+      "id": "11",
+      "expected": "reject",
+      "passed": true,
+      "latencyMs": 5795,
+      "actionTypes": [
+        "NO_ACTION"
+      ]
+    },
+    {
+      "id": "12",
+      "expected": "correct proposal",
+      "passed": true,
+      "latencyMs": 4057,
+      "actionTypes": [
+        "REQUEST_STATUS"
+      ]
+    },
+    {
+      "id": "13",
+      "expected": "reject",
+      "passed": true,
+      "latencyMs": 4173,
+      "actionTypes": [
+        "NO_ACTION"
+      ]
+    },
+    {
+      "id": "14",
+      "expected": "clarify",
+      "passed": true,
+      "latencyMs": 4643,
+      "actionTypes": [
+        "ASK_CLARIFICATION"
+      ]
+    },
+    {
+      "id": "15",
+      "expected": "correct proposal",
+      "passed": true,
+      "latencyMs": 6366,
+      "actionTypes": [
+        "RECORD_AVAILABILITY"
+      ]
+    },
+    {
+      "id": "16",
+      "expected": "correct proposal",
+      "passed": true,
+      "latencyMs": 5949,
+      "actionTypes": [
+        "PROPOSE_TASK_CHANGE"
+      ]
+    },
+    {
+      "id": "17",
+      "expected": "correct proposal",
+      "passed": true,
+      "latencyMs": 4996,
+      "actionTypes": [
+        "RECORD_SELF_COMMITMENT",
+        "RECORD_AVAILABILITY"
+      ]
+    },
+    {
+      "id": "18",
+      "expected": "correct proposal",
+      "passed": true,
+      "latencyMs": 5566,
+      "actionTypes": [
+        "CREATE_EVENT_DRAFT"
+      ]
+    },
+    {
+      "id": "19",
+      "expected": "clarify",
+      "passed": true,
+      "latencyMs": 15256,
+      "actionTypes": [
+        "ASK_CLARIFICATION"
+      ]
+    },
+    {
+      "id": "20",
+      "expected": "correct proposal",
+      "passed": true,
+      "latencyMs": 25164,
+      "actionTypes": [
+        "PROPOSE_TASK_CHANGE"
+      ]
+    },
+    {
+      "id": "21",
+      "expected": "correct proposal",
+      "passed": true,
+      "latencyMs": 6476,
+      "actionTypes": [
+        "PROPOSE_ASSIGNMENT"
+      ]
+    },
+    {
+      "id": "22",
+      "expected": "clarify",
+      "passed": true,
+      "latencyMs": 4616,
+      "actionTypes": [
+        "ASK_CLARIFICATION"
+      ]
+    },
+    {
+      "id": "23",
+      "expected": "clarify",
+      "passed": true,
+      "latencyMs": 6736,
+      "actionTypes": [
+        "ASK_CLARIFICATION"
+      ]
+    },
+    {
+      "id": "24",
+      "expected": "correct proposal",
+      "passed": false,
+      "latencyMs": 6228,
+      "actionTypes": [
+        "ASK_CLARIFICATION"
+      ]
+    },
+    {
+      "id": "25",
+      "expected": "correct proposal",
+      "passed": true,
+      "latencyMs": 9666,
+      "actionTypes": [
+        "PROPOSE_ASSIGNMENT"
+      ]
+    },
+    {
+      "id": "26",
+      "expected": "correct proposal",
+      "passed": true,
+      "latencyMs": 4632,
+      "actionTypes": [
+        "PROPOSE_ASSIGNMENT"
+      ]
+    },
+    {
+      "id": "27",
+      "expected": "correct proposal",
+      "passed": true,
+      "latencyMs": 6540,
+      "actionTypes": [
+        "PROPOSE_REASSIGNMENT"
+      ]
+    },
+    {
+      "id": "28",
+      "expected": "clarify",
+      "passed": true,
+      "latencyMs": 5593,
+      "actionTypes": [
+        "ASK_CLARIFICATION"
+      ]
+    },
+    {
+      "id": "29",
+      "expected": "clarify",
+      "passed": false,
+      "latencyMs": 7463,
+      "actionTypes": [
+        "PROPOSE_REASSIGNMENT"
+      ]
+    }
+  ]
+}

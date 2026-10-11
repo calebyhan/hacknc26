@@ -7,6 +7,7 @@ import { internal } from "./_generated/api";
 import { taskVersion } from "./lib/validators";
 import { readJobContext } from "./context";
 import { AgentDecisionSchema, type AgentDecision } from "../packages/shared/agentDecision";
+import { legacyContextPacket } from "../packages/shared/contextProtocol";
 import { unavailableCopy } from "../packages/shared/copy";
 
 const LEASE_MS = 45_000;
@@ -61,7 +62,7 @@ export const enqueue = internalMutation({
 const claimedJob = v.union(v.null(), v.object({ jobId: v.id("reasoningJobs"), leaseToken: v.string(), leaseUntil: v.number(), contextVersion: v.union(v.number(), v.null()), taskVersions: v.array(taskVersion), packetJson: v.string() }));
 
 export const claim = mutation({
-  args: { workerToken: v.string(), workerId: v.string() }, returns: claimedJob,
+  args: { workerToken: v.string(), workerId: v.string(), contextProtocol: v.optional(v.literal(2)) }, returns: claimedJob,
   handler: async (ctx, args): Promise<Infer<typeof claimedJob>> => {
     requireWorker(args.workerToken, args.workerId);
     const queued = await ctx.db.query("reasoningJobs").withIndex("by_status", (q) => q.eq("status", "queued")).order("asc").take(20);
@@ -71,7 +72,10 @@ export const claim = mutation({
     for (const job of candidates) {
       if (Date.now() >= job._creationTime + JOB_TTL_MS || job.attempts >= MAX_ATTEMPTS) { await failJob(ctx, job, "WORKER_TIMEOUT", "expired"); continue; }
       let packetJson: string;
-      try { packetJson = JSON.stringify((await readJobContext(ctx, job)).packet); }
+      try {
+        const packet = (await readJobContext(ctx, job)).packet;
+        packetJson = JSON.stringify(args.contextProtocol === 2 ? packet : legacyContextPacket(packet));
+      }
       catch { await failJob(ctx, job, "CONTEXT_NOT_AVAILABLE"); continue; }
       const leaseUntil = Math.min(Date.now() + LEASE_MS, job._creationTime + JOB_TTL_MS);
       const leaseToken = await tokenFor(job, args.workerId, leaseUntil);

@@ -42,7 +42,7 @@ export default defineSchema({
     phoneE164: v.string(),
     selectedAt: v.number(),
     invitationId: v.optional(v.id("invitations")),
-  }).index("by_owner", ["ownerUserId"]).index("by_event", ["eventId"]),
+  }).index("by_owner", ["ownerUserId"]).index("by_event", ["eventId"]).index("by_phone", ["phoneE164"]),
 
   invitations: defineTable({
     purpose: v.union(v.literal("event_invite"), v.literal("app_phone_link")),
@@ -130,6 +130,8 @@ export default defineSchema({
     targetUserId: v.optional(v.id("users")),
     // Shared PROPOSE_TASK_CHANGE action JSON; validate before persisting or using.
     taskChangeJson: v.optional(v.string()),
+    // Shared OverlapWarningSchema; private snapshot and signed confirmation proof.
+    overlapWarningJson: v.optional(v.string()),
     state: proposalState,
     requiresOrganizerApproval: v.boolean(),
     organizerApprovedAt: v.optional(v.number()),
@@ -148,6 +150,8 @@ export default defineSchema({
     contentType: v.string(),
     bodyRedactedOrEncrypted: v.optional(v.string()),
     eventId: v.optional(v.id("events")),
+    clarifiesMessageId: v.optional(v.id("inboundMessages")),
+    clarifiedTaskId: v.optional(v.id("tasks")),
     processingState: inboundProcessingState,
   }).index("by_provider_message_id", ["provider", "providerMessageId"])
     .index("by_sender", ["senderPhone"])
@@ -170,10 +174,31 @@ export default defineSchema({
   conversationFocus: defineTable({
     userId: v.id("users"),
     lastEventId: v.optional(v.id("events")),
+    lastTaskId: v.optional(v.id("tasks")),
+    pendingTaskClarification: v.optional(v.object({
+      eventId: v.id("events"), sourceMessageId: v.id("inboundMessages"), eventVersion: v.number(),
+      resolvedByMessageId: v.optional(v.id("inboundMessages")),
+      taskVersions: v.array(taskVersion), expiresAt: v.number(),
+    })),
     lastIntent: v.optional(v.string()),
     updatedAt: v.number(),
     expiresAt: v.number(),
   }).index("by_user", ["userId"]),
+
+  phoneEventClosures: defineTable({
+    userId: v.id("users"), eventId: v.id("events"), sourceMessageId: v.id("inboundMessages"),
+    eventVersion: v.number(), snapshotJson: v.string(), createdAt: v.number(), expiresAt: v.number(),
+  }).index("by_user", ["userId"]),
+
+  phoneSetupSessions: defineTable({
+    userId: v.id("users"), stateJson: v.string(), expiresAt: v.number(),
+    updatedAt: v.number(), lastMessageId: v.id("inboundMessages"),
+  }).index("by_user", ["userId"]),
+
+  phoneSetupReceipts: defineTable({
+    userId: v.id("users"), messageId: v.id("inboundMessages"),
+    contentHash: v.string(), createdAt: v.number(),
+  }).index("by_message", ["messageId"]).index("by_user", ["userId"]),
 
   reasoningJobs: defineTable({
     messageId: v.id("inboundMessages"),

@@ -1,6 +1,6 @@
 # iOS account and status contracts
 
-Implemented on `lane/d-ios-integration`, 2026-10-10, as an additive A/B/D continuation authorized by the user. Existing domain mutation inputs and canonical enums are preserved. Local verification is recorded in [the app README](../ios/Rally/README.md); deployment and real Auth0/Photon/device acceptance are deferred.
+Implemented on `lane/d-ios-integration`, 2026-10-10, as an additive A/B/D continuation authorized by the user. Existing domain mutation inputs and canonical enums are preserved. Verification is recorded in [the app README](../ios/Rally/README.md). The phone-link correction is deployed to development; physical-device sign-in, assigned-number display and corrected real JOIN phone verification are user-confirmed. Event messaging consent and full message/app parity remain separate live gates.
 
 ## Public reads
 
@@ -19,6 +19,12 @@ Implemented on `lane/d-ios-integration`, 2026-10-10, as an additive A/B/D contin
 
 Runtime schemas live in `packages/shared/appStatus.ts`; Convex validators and function inventory also cover the new APIs. These queries perform no messaging or consent writes.
 
+## Phone-link challenge
+
+`accounts.beginPhoneLink({phoneE164,idempotencyKey})` requires a registered authenticated account and returns `{invitationId,code,expiresAt,route}`. The caller-owned challenge may display the requested phone's authoritative bot destination before phone proof. It exposes no participant profile, event membership or consent. This exception requires active trusted provisioning and uses the same rotation/revocation checks as verified routing; its expiry is the earlier of challenge expiry and route expiry. Unassigned phones return an unavailable route with explicit setup instructions in the app.
+
+An authenticated Spectrum `JOIN <code>` from the selected phone records proof and returns the fixed instruction to finish in Rally. It leaves the challenge pending and does not attach the app identity or enroll an event. Only `accounts.completePhoneLink`, with the challenge owner's app session and persisted signed proof, reconciles an existing unbound phone identity or verifies a new phone. Another app identity's phone remains protected. Event JOIN remains separate.
+
 ## Verified contact routing
 
 The route union is `{status:"available",destination,expiresAt}` or `{status:"unavailable"}`. Destination is strict E.164 and expiry is integer Unix milliseconds. The app hides the shortcut at expiry even without a reactive query update, rechecks it at tap time, and disables it on stale connections and in demo mode. The [Apple SMS URL contract](https://developer.apple.com/library/archive/featuredarticles/iPhoneURLScheme_Reference/SMSLinks/SMSLinks.html) is used without message text or additional recipients; opening Messages never sends automatically.
@@ -28,9 +34,9 @@ Installed `@spectrum-ts/imessage` 12.10.1 uses a `shared` sentinel, and inbound 
 1. The newest authenticated encrypted inbound envelope's dedicated `linePhone`, if it is valid E.164, differs from the participant, and is less than 24 hours old; or
 2. An authoritative participant-to-Rally allocation entered through the trusted internal provisioning boundary below.
 
-Missing, invalid, shared-mode, corrupt and future observations return unavailable. A newer observation supersedes provisioning; a newer shared/missing line requires fresh authoritative provisioning. Expired/revoked provision records suppress all inbound fallback. The maximum route lifetime is 24 hours. This conservative bound requires revalidation; it is not a claim about provider allocation lifetime. The component's sticky registry and older valid messages cannot resurrect stale routes.
+Missing, invalid, corrupt and future observations return unavailable. Shared-mode evidence alone supplies no number. A current trusted allocation can survive newer `shared` observations when all later observations are valid and either shared or match that allocation. A different dedicated line supersedes provisioning; any intervening conflicting/missing/corrupt observation prevents a later shared sentinel from resurrecting the old number. This bounded check accepts at most 30 observations since provisioning; more require revalidation. Expired/revoked provision records suppress all inbound fallback. The maximum route lifetime is 24 hours. This conservative bound requires revalidation; it is not a claim about provider allocation lifetime.
 
-### Operator handoff — deferred, no provisioning executed
+### Operator handoff
 
 After verifying the current allocation through the provider's authoritative provisioning channel, an authorized backend operator/adapter may call internal `appStatus.recordProvisionedRoute` with:
 
@@ -47,6 +53,8 @@ After verifying the current allocation through the provider's authoritative prov
 The mutation validates E.164, different addresses, bounded TTL and monotonically newer verification; exact retries are idempotent. It stores `messagingRoutes` indexed by participant phone. Do not infer the destination from a DM sender or use another participant's assigned number. This table is backend-only; public apps and messages cannot provision or revoke routes. No automatic provider lookup or refresh is claimed.
 
 Internal `appStatus.revokeProvisionedRoute({participantPhoneE164})` creates a server-timestamped tombstone, including when no record exists. Only strictly newer trusted provisioning restores a revoked route. Routing metadata is private operational data; the public query projects only the caller's current destination/expiry. Invitation sharing remains code-only: an invitee must use their own provisioned Rally conversation.
+
+On 2026-10-10, the operator verified the reporting user's participant-to-bot allocation in the authenticated Photon Users dashboard and recorded it on the development deployment with a 24-hour expiry. Addresses remain outside repository artifacts. New participants still need provider setup and trusted route registration; automatic Photon user provisioning and refresh are not implemented.
 
 ## Public errors and session behavior
 

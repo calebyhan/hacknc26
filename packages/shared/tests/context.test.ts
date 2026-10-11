@@ -31,9 +31,10 @@ describe("event resolution in authorized scope", () => {
     expect(resolveEvent(input({ recentFocus: { eventId: ids.charity5k, expiresAt: now } })).selectedEventId).toBeNull();
     expect(resolveEvent(input({ recentFocus: { eventId: "private_event", expiresAt: now + 1 } })).candidateIds).not.toContain("private_event");
   });
-  it("prioritizes the correct sender's live pending proposal", () => {
+  it("uses a live pending proposal after explicit event references", () => {
     const proposal = { id: "offer", eventId: ids.charity5k, type: "assignment" as const, targetUserId: ids.alex, expiresAt: new Date(now + 1).toISOString(), eventVersionAtCreation: 1 };
-    expect(resolveEvent(input({ incomingText: "Hack Night", pendingProposalsForSender: [proposal] })).selectedEventId).toBe(ids.charity5k);
+    expect(resolveEvent(input({ incomingText: "Hack Night", pendingProposalsForSender: [proposal] })).selectedEventId).toBe(ids.hackNight);
+    expect(resolveEvent(input({ incomingText: "Can someone cover for me?", pendingProposalsForSender: [proposal] })).selectedEventId).toBe(ids.charity5k);
     expect(resolveEvent(input({ pendingProposalsForSender: [{ ...proposal, targetUserId: ids.maya }] })).selectedEventId).toBeNull();
     expect(resolveEvent(input({ pendingProposalsForSender: [{ ...proposal, expiresAt: new Date(now).toISOString() }] })).selectedEventId).toBeNull();
   });

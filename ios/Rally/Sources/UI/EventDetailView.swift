@@ -441,6 +441,10 @@ private struct TaskRow: View {
                 StatusBadge(status: task.committedDisplayStatus)
             }
             if let status = task.attentionDisplayStatus { StatusBadge(status: status) }
+            if task.status != .completed && task.status != .canceled {
+                Text("\(task.activeAssigneeIds.count) of \(task.capacity) people confirmed")
+                    .font(.subheadline).foregroundStyle(.secondary)
+            }
             if !task.activeAssigneeIds.isEmpty {
                 Text("\(task.status == .confirmed ? "Confirmed" : "Assigned"): \(task.activeAssigneeIds.map(detail.memberName).joined(separator: ", "))")
                     .font(.subheadline.weight(.medium))

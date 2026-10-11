@@ -1,7 +1,7 @@
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
-import { EventCreateInputSchema, TaskCreateInputSchema } from "../../packages/shared/domain";
+import { EventCreateInputSchema, OverlapSnapshotSchema, TaskCreateInputSchema } from "../../packages/shared/domain";
 import { memberFor } from "./auth";
 import { canSend, openEnvelope } from "./messaging";
 import { overlaps } from "../../packages/shared/planner";
@@ -72,18 +72,18 @@ export async function createTask(ctx: MutationCtx, actorId: Id<"users">, raw: un
   await audit(ctx, eventId, actorId, "task_created", source, { input, result: taskId });
   return taskId;
 }
-export async function eligible(ctx: QueryCtx | MutationCtx, event: Doc<"events">, task: Doc<"tasks">, userId: Id<"users">, ignoreTask = false): Promise<boolean> {
+export async function eligible(ctx: QueryCtx | MutationCtx, event: Doc<"events">, task: Doc<"tasks">, userId: Id<"users">, ignoreTask = false, allowOverlap = false): Promise<boolean> {
   const member = await memberFor(ctx, userId, event._id);
   if (member.user.messagingState !== "active" || !member.user.verifiedPhoneE164 || !member.membership.notificationsEnabled || member.membership.consentAt === undefined || !member.membership.consentSourceMessageId) return false;
   const consent = await ctx.db.get(member.membership.consentSourceMessageId);
   if (consent?.senderPhone !== member.user.verifiedPhoneE164 || consent.provider !== "spectrum") return false;
   if (task.eventId !== event._id || event.status !== "scheduled" || task.status === "completed" || task.status === "canceled" || task.windowStart === undefined || task.windowEnd === undefined) return false;
   if (task.requiredSkills?.some(skill => !member.user.settings.skills?.includes(skill))) return false;
-  const commitments = (await ctx.db.query("commitments").withIndex("by_participant", q => q.eq("participantId", userId)).collect()).filter(c => c.state === "active" && c.eventId === event._id);
+  const commitments = (await ctx.db.query("commitments").withIndex("by_participant", q => q.eq("participantId", userId)).collect()).filter(c => c.state === "active");
   for (const c of commitments) {
     if (c.taskId === task._id) { if (ignoreTask) continue; return false; }
     const other = await ctx.db.get(c.taskId);
-    if (!other || other.windowStart === undefined || other.windowEnd === undefined || overlaps(task.windowStart, task.windowEnd, other.windowStart, other.windowEnd)) return false;
+    if (!other || other.windowStart === undefined || other.windowEnd === undefined || (!allowOverlap && overlaps(task.windowStart, task.windowEnd, other.windowStart, other.windowEnd))) return false;
   }
   for (const id of task.dependsOnTaskIds ?? []) {
     const dependency = await ctx.db.get(id);
@@ -91,6 +91,23 @@ export async function eligible(ctx: QueryCtx | MutationCtx, event: Doc<"events">
   }
   const available = (await ctx.db.query("availability").withIndex("by_event_user", q => q.eq("eventId", event._id).eq("userId", userId)).collect()).filter(a => overlaps(task.windowStart!, task.windowEnd!, a.windowStart, a.windowEnd));
   return !available.some(a => a.kind === "unavailable" && !available.some(newer => newer.kind === "available" && newer.recordedAt > a.recordedAt && newer.windowStart <= a.windowStart && newer.windowEnd >= a.windowEnd));
+}
+/** All of this participant's active obligations matter. Callers must redact
+ * names from other events rather than publishing another event's schedule. */
+export async function overlappingCommitments(ctx: QueryCtx | MutationCtx, task: Doc<"tasks">, userId: Id<"users">) {
+  const commitments = (await ctx.db.query("commitments").withIndex("by_participant", q => q.eq("participantId", userId)).collect()).filter(c => c.state === "active" && c.taskId !== task._id);
+  const conflicts: { commitmentId: Id<"commitments">; taskId: Id<"tasks">; taskVersion: number; windowStart: number; windowEnd: number; eventId: Id<"events">; title: string }[] = [];
+  if (task.windowStart === undefined || task.windowEnd === undefined) return conflicts;
+  for (const commitment of commitments) {
+    const other = await ctx.db.get(commitment.taskId);
+    if (other?.windowStart !== undefined && other.windowEnd !== undefined && overlaps(task.windowStart, task.windowEnd, other.windowStart, other.windowEnd)) conflicts.push({ commitmentId: commitment._id, taskId: other._id, taskVersion: other.version, windowStart: other.windowStart, windowEnd: other.windowEnd, eventId: other.eventId, title: other.title });
+  }
+  return conflicts.sort((a, b) => a.commitmentId.localeCompare(b.commitmentId));
+}
+export async function captureOverlap(ctx: QueryCtx | MutationCtx, event: Doc<"events">, task: Doc<"tasks">, targetId: Id<"users">) {
+  const conflicts = await overlappingCommitments(ctx, task, targetId);
+  const snapshot = OverlapSnapshotSchema.parse({ eventVersion: event.version, taskVersion: task.version, windowStart: task.windowStart, windowEnd: task.windowEnd, conflicts: conflicts.map(({ commitmentId, taskId, taskVersion, windowStart, windowEnd }) => ({ commitmentId, taskId, taskVersion, windowStart, windowEnd })) });
+  return { conflicts, snapshot };
 }
 export function summarizeEvent(event: Doc<"events">, role: "organizer" | "member"): Infer<typeof eventSummary> {
   const { _id, title, kind, startsAt, timezone, status, version, location } = event;

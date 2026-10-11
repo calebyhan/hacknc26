@@ -9,7 +9,7 @@ describe("Convex storage contract (in-memory simulation)", () => {
     expect(Object.keys(schema.tables).sort()).toEqual([
       "auditEvents", "availability", "commitments", "contactSelections",
       "conversationFocus", "events", "inboundMessages", "invitations",
-      "memberships", "messagingRoutes", "outboundMessages", "proposals", "reasoningJobs",
+      "memberships", "messagingRoutes", "outboundMessages", "phoneEventClosures", "phoneSetupReceipts", "phoneSetupSessions", "proposals", "reasoningJobs",
       "tasks", "users", "weatherObservations", "workerHeartbeats",
     ]);
   });

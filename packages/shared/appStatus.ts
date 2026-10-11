@@ -23,6 +23,12 @@ export const AppRouteSchema = z.discriminatedUnion("status", [
   z.strictObject({ status: z.literal("available"), destination: PhoneE164Schema, expiresAt: TimestampSchema }),
   z.strictObject({ status: z.literal("unavailable") }),
 ]);
+export const AppPhoneLinkChallengeSchema = z.strictObject({
+  invitationId: IdentifierSchema,
+  code: z.string().min(1).max(128),
+  expiresAt: TimestampSchema,
+  route: AppRouteSchema,
+});
 
 // All activity copy is static. Neither audit payloads nor message content belong
 // in the status API. Delivery timestamps describe creation, not receipt time.

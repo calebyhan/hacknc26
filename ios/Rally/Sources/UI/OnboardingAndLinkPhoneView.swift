@@ -49,15 +49,33 @@ struct OnboardingAndLinkPhoneView: View {
                         }
                     }
                     if let challenge = model.challenge {
-                        Section("Verify in your existing Rally conversation") {
+                        Section("Send this in Apple Messages") {
                             Text("JOIN \(challenge.code)")
                                 .font(.title2.monospaced().bold())
                                 .textSelection(.enabled)
                                 .accessibilityIdentifier("phoneJoinCode")
                             Text("Expires \(challenge.expirationDate.formatted(date: .omitted, time: .shortened))")
                                 .font(.subheadline)
-                            Text("Send this from the phone above in the Rally conversation provisioned for you. A contact shortcut becomes available after phone verification when Rally has a verified destination.")
-                                .foregroundStyle(.secondary)
+                            if model.state == .expired {
+                                Text("Request a new verification code to refresh your Rally contact.")
+                                    .foregroundStyle(.secondary)
+                            } else if let destination = challenge.route?.destination(at: Date()) {
+                                Text("Text Rally at \(destination)")
+                                    .font(.headline).textSelection(.enabled)
+                                    .accessibilityIdentifier("phoneLinkDestination")
+                                RallyRouteView(route: challenge.route ?? .unavailable, mode: client.mode,
+                                               isStale: client.mode == .live && session.connection.isStale)
+                                Text("Send the JOIN code above from \(model.phone), then return here and check verification.")
+                                    .foregroundStyle(.secondary)
+                            } else if client.mode == .live {
+                                Text("Your Rally number isn’t available in this app yet")
+                                    .font(.headline).accessibilityIdentifier("phoneLinkRouteUnavailable")
+                                Text("Ask Rally’s setup owner to finish messaging setup for your phone, then request another code here. If you already have a Rally conversation in Apple Messages, you can send this code there now.")
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text("This fictional JOIN code demonstrates phone verification. No message is sent.")
+                                    .foregroundStyle(.secondary)
+                            }
                             ShareLink("Share JOIN instruction", item: "JOIN \(challenge.code)")
                                 .disabled(model.state == .expired)
                             Button("Check phone verification") { Task { await completeLink() } }

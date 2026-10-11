@@ -79,7 +79,7 @@ async function appForPhone(h: Harness, phone: string, name: string) {
 function worker(h: Harness) {
   const provider = new FakeInferenceProvider();
   const queue: QueueBackend = {
-    claim: () => h.t.mutation(api.reasoningJobs.claim, credentials),
+    claim: () => h.t.mutation(api.reasoningJobs.claim, { ...credentials, contextProtocol: 2 }),
     complete: args => h.t.mutation(api.reasoningJobs.complete, {
       ...credentials, ...args, jobId: args.jobId as Id<"reasoningJobs">,
     }).then(() => {}),
@@ -186,7 +186,9 @@ describe("demo rehearsal — SIMULATED signed phones + worker + app reads; no li
     await h.receive(h.phones.jordan, "YES", "rehearsal-repeat-answer");
     await h.t.mutation(api.reasoningJobs.complete, { ...credentials, jobId: replacement.job._id, leaseToken: replacement.job.leaseToken!, decisionJson: JSON.stringify(replacement.decision) });
     await h.drain();
-    expect((await h.outbox()).filter(row => row.proposalId === pending._id)).toHaveLength(4);
+    const proposalNotices = (await h.outbox()).filter(row => row.proposalId === pending._id);
+    expect(proposalNotices).toHaveLength(5);
+    expect(proposalNotices.some(row => row.content.includes("Offer created for Jordan") && row.content.includes("Waiting for Jordan to accept"))).toBe(true);
     expect(w.provider.calls).toHaveLength(callsBeforeCommands);
     await truth("worker stopped: YES and replay commit once", "jordan");
     expect((await h.t.run(ctx => ctx.db.query("commitments").collect())).find(row => row.participantId === maya.user._id)).toMatchObject({ state: "released" });

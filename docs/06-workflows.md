@@ -2,10 +2,10 @@
 
 ## W1 — Enroll a participant
 
-1. Organizer selects **specific** device contact in app.
+1. Organizer selects a **specific** contact in app, or uses `invite someone` in their signed Rally conversation and reviews the name and selected phone's last four digits.
 2. Create membership `invited` and an `invitations` row (`pending`) with an expiring one-time code.
-3. Human-controlled invite handoff and participant **inbound** message `JOIN <code>` establishes opt-in and proof of phone access.
-4. Match code to only that invitation, mark it `redeemed`, mark member `enrolled`, record `consentAt`; acknowledge with event name and help instructions.
+3. Human-controlled invite handoff and participant **inbound** message `join <event name>` or `JOIN <code>` establishes opt-in and proof of phone access.
+4. Match exactly one current invitation bound to that signed phone. Named JOIN rechecks the selected contact's event/inviter binding and invitation time boundary; duplicate matching event names require the original code. Mark the invitation `redeemed`, mark member `enrolled`, record `consentAt` and its source message; acknowledge with event name and help instructions.
 5. Future notifications allowed only within explicit event scope and current messaging provider rules.
 
 **Disallow:** adding selected phone as enrolled without recipient action; exposing event data before verification; indefinite reuse of join code.
@@ -15,12 +15,20 @@
 - App organizer enters title/date/time/timezone/location; optional event kind and weather sensitivity.
 - Verify organizer authentication; save new event with `version=1`.
 - Contact selections become `invited` memberships only; no cold send.
-- iMessage user says “Set up a charity run Saturday”; create an event with `status=draft`, ask organizer to confirm details/timezone before moving it to `scheduled`.
+- Guided iMessage setup starts with `create an event`, `new event`, or `plan an event`. Ask for title, an explicit date/time such as `Oct 18, 2026 at 2 PM`, timezone (or the sender's established default), and location. Ask again for ambiguous dates; the current deterministic parser does not interpret arbitrary phrases such as “Saturday afternoon.”
+- Persist a sender-bound setup session, with a 15-minute inactivity expiry, instead of creating an event immediately. Review the local date/time/location and explicit event-notification consent. Only the sender's distinct `yes, create it` confirmation atomically creates the scheduled event, organizer membership, signed consent source and event/actor audit record. Bare `YES` remains reserved for pending offers. Cancellation/expiry leaves no event behind.
+- Expert `CREATE EVENT` remains a separate draft → organizer JOIN → versioned `CONFIRM` path. App event creation does not by itself grant messaging consent.
 - **P0 without the iOS app (ADR-013):** events, tasks and invited memberships may be created by a labeled seed/bootstrap script run by an authenticated organizer before the demo, or via the iMessage draft flow above. Neither path sends invitations automatically.
 
 ## W3 — Assigning a task
 
 Task status reflects **committed** state only; pending offers are `proposals` (see [`03-data-model.md`](03-data-model.md#canonical-state-enums)). Reassignment policy is ADR-011.
+
+Before assignment, a consented organizer can use `add a task`, choose the authorized event if needed, and enter title, window and required staffing (1–20). Review and `yes, add it` create an unassigned task. Overlapping task windows are allowed; each task has independent capacity. A time such as `1 PM` uses the displayed event day/timezone; a later-day end requires the full date. Event version and organizer access are rechecked when saving.
+
+After saving, send the next task's name to continue in the same event, or `done` to finish. Each task still requires its own review and `yes, add it`. Commands and coordination requests leave saved tasks intact; late model questions from before a newer setup interaction are suppressed, including at outbox dispatch.
+
+When organizer approval is required, `approve <task name>` matches only a unique current request visible to that organizer. Ambiguity produces explicit task/participant/event choices. Approval permits asking the participant; it never creates a commitment. If organizer and target are the same person, send the actionable offer once and still require their subsequent `YES`.
 
 ```text
 task status        proposal (state)                         result
@@ -37,7 +45,7 @@ confirmed          (no proposal) authorized completion -> completed
 
 Three triggers must stay distinct (ADR-011):
 
-- **Organizer suggests a replacement** (“Can Jordan cover setup?”): Maya stays `active` until Jordan accepts; on accept Maya's commitment becomes `released` and Maya gets one notification.
+- **Organizer suggests a replacement** (“Can Jordan replace Maya on setup?”): Maya stays `active` until Jordan accepts; on accept Maya's commitment becomes `released` and Maya gets one notification. Adding someone to a task with spare capacity preserves existing assignees; unclear add-versus-replace requests should ask for clarification.
 - **Assignee cancels** (“I can't do setup anymore” from Maya): commitment → `canceled_by_participant`, task → `needs_coverage`, organizer notified.
 - **Organizer reports unavailability** (“Maya can't make it”): recorded as an audited organizer override; Maya's commitment → `released`, task → `needs_coverage`, Maya gets one notification. A declined replacement leaves the task `needs_coverage`, never silently back on Maya.
 
@@ -66,6 +74,12 @@ Use pending-reply scope first. If sender says “yes,” tie it to **their** cur
 ## W7 — Opt out
 
 Use the deterministic command set in [`04-messaging-and-photon.md`](04-messaging-and-photon.md#deterministic-commands). `STOP` sets `users.messagingState=stopped`, cancels that user's queued optional outbound messages and their `pending` proposals. `PAUSE`/`RESUME` toggle `paused`/`active`. `LEAVE <event>` sets membership `left` and cancels pending proposals targeting them in that event. These controls are handled without a model. For service-critical notices, follow messaging and consent rules; for hackathon MVP, err on the side of silence.
+
+## W8 — Close a finished test event
+
+A consented organizer sends `close event <exact event name>` and reviews the event's active assignments, unfinished tasks, pending offers and invitations. Duplicate names require the event ID from STATUS. No domain state changes during review. A subsequent `yes, close it` confirms that exact snapshot within five minutes; `cancel close` discards the review. Changed versions, staffing, access or expired reviews require a fresh review.
+
+Confirmation marks the event canceled, releases active commitments, cancels unfinished tasks and pending offers, and revokes pending invitations in one audited transaction. Only consented event members receive notices. History remains in the app; closed events disappear from active phone STATUS and their released assignments no longer cause overlap warnings. Other events remain unchanged. Existing events are never closed automatically.
 
 ## Rejection and clarification examples
 

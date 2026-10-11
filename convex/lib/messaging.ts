@@ -1,5 +1,5 @@
 import { InboundEnvelopeSchema, parseCommand, type InboundEnvelope } from "../../packages/shared/commands";
-import { controlCopy, helpCopy, invalidJoinCopy, onboardingCopy } from "../../packages/shared/copy";
+import { controlCopy, helpCopy, invalidJoinCopy, onboardingCopy, phoneLinkProofCopy } from "../../packages/shared/copy";
 import type { Doc } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { parsePhoneSetupCommand, PhoneSetupReceiptSchema, phoneSetupErrorCopy, phoneSetupUsageCopy } from "../../packages/shared/phoneSetup";
@@ -44,6 +44,22 @@ export async function senderFor(ctx: QueryCtx | MutationCtx, message: Doc<"inbou
   return ctx.db.query("users").withIndex("by_phone", (q) => q.eq("verifiedPhoneE164", message.senderPhone)).unique();
 }
 
+/** JOIN supplies phone proof; only the authenticated app reconciles identities. */
+export async function appPhoneLinkProof(ctx: QueryCtx | MutationCtx, message: Doc<"inboundMessages">, code: string): Promise<boolean> {
+  if (message.provider !== "spectrum") return false;
+  const codeHash = await hashCode(code);
+  const invitation = await ctx.db.query("invitations").withIndex("by_code_hash", q => q.eq("codeHash", codeHash)).unique();
+  if (!invitation || invitation.purpose !== "app_phone_link" || !["pending", "redeemed"].includes(invitation.state)
+    || invitation.failedAttempts >= 5 || invitation.expiresAt <= Date.now() || message.receivedAt > invitation.expiresAt) return false;
+  const selected = invitation.contactSelectionId ? await ctx.db.get(invitation.contactSelectionId) : null;
+  const target = invitation.targetUserId ? await ctx.db.get(invitation.targetUserId) : null;
+  const sender = await senderFor(ctx, message);
+  return !!(selected && target?.authSubject && selected.ownerUserId === target._id && invitation.inviterUserId === target._id
+    && selected.phoneE164 === message.senderPhone && message.receivedAt >= selected.selectedAt
+    && (!target.verifiedPhoneE164 || target.verifiedPhoneE164 === message.senderPhone)
+    && (!sender?.authSubject || sender.authSubject === target.authSubject));
+}
+
 /** Fixed controls or the exact authorized phone setup receipt; no broad reply bypass. */
 export async function canSend(ctx: QueryCtx | MutationCtx, row: Pick<Doc<"outboundMessages">, "recipientUserId" | "eventId" | "directReplyToMessageId" | "content">): Promise<boolean> {
   const user = await ctx.db.get(row.recipientUserId);
@@ -53,6 +69,14 @@ export async function canSend(ctx: QueryCtx | MutationCtx, row: Pick<Doc<"outbou
   if (ownReply && !row.eventId) {
     const text = (await openEnvelope(inbound!)).text;
     const command = parseCommand(text);
+    if (user.messagingState === "active") {
+      // A failed guided transaction rolls back its receipt. This fixed error
+      // contains no event data and is allowed only to the verified sender.
+      if (row.content === phoneSetupErrorCopy) return true;
+      const receipt = await ctx.db.query("phoneSetupReceipts").withIndex("by_message", q => q.eq("messageId", inbound!._id)).unique();
+      if (receipt?.userId === user._id && receipt.createdAt > Date.now() - 86_400_000
+        && receipt.createdAt <= Date.now() && receipt.contentHash === await contentDigest(row.content)) return true;
+    }
     if (user.messagingState === "active" && parsePhoneSetupCommand(text)) {
       if (row.content === phoneSetupUsageCopy || row.content === phoneSetupErrorCopy) return true;
       const receipt = await ctx.db.query("auditEvents").withIndex("by_source", q => q.eq("sourceId", `phone-reply:${inbound!._id}`)).unique();
@@ -64,6 +88,7 @@ export async function canSend(ctx: QueryCtx | MutationCtx, row: Pick<Doc<"outbou
     if (row.content === onboardingCopy) return true;
     if (row.content === helpCopy && command.type === "HELP") return true;
     if (row.content === invalidJoinCopy && command.type === "JOIN") return true;
+    if (row.content === phoneLinkProofCopy && command.type === "JOIN") return appPhoneLinkProof(ctx, inbound!, command.code);
     if (command.type === "LEAVE" && row.content === "You've left that event. Rally will no longer send its notifications.") {
       const memberships = await ctx.db.query("memberships").withIndex("by_user", (q) => q.eq("userId", user._id)).collect();
       for (const membership of memberships.filter((m) => m.state === "left")) {

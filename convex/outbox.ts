@@ -5,6 +5,10 @@ import type { MutationCtx } from "./_generated/server";
 import { canSend, openEnvelope } from "./lib/messaging";
 import { internal } from "./_generated/api";
 import { SendRequestSchema } from "../packages/shared/adapters";
+import { OverlapWarningSchema } from "../packages/shared/domain";
+import { ProposeTaskChangeActionSchema } from "../packages/shared/agentDecision";
+import { canonicalJson, captureOverlap } from "./lib/domain";
+import { staleConversationReply } from "./lib/conversationReplies";
 
 
 /**
@@ -51,12 +55,15 @@ async function proposalRequestIsCurrent(ctx: MutationCtx, row: Doc<"outboundMess
   const prefix = `proposal:${row.proposalId}:`;
   const participantRequest = row.idempotencyKey.startsWith(`${prefix}request:`);
   const approvalRequest = row.idempotencyKey.startsWith(`${prefix}approval:`);
-  if (!participantRequest && !approvalRequest) return true;
+  const overlapRequest = row.idempotencyKey.startsWith(`${prefix}overlap:`);
+  if (!participantRequest && !approvalRequest && !overlapRequest) return true;
 
   const proposal = await ctx.db.get(row.proposalId);
   if (!proposal || proposal.eventId !== row.eventId || proposal.state !== "pending" || proposal.expiresAt <= Date.now()) return false;
-  if (participantRequest) {
-    if (row.idempotencyKey !== `${prefix}request:${row.recipientUserId}` || proposal.targetUserId !== row.recipientUserId || (proposal.requiresOrganizerApproval && proposal.organizerApprovedAt === undefined)) return false;
+  if (participantRequest || overlapRequest) {
+    if ((participantRequest && row.idempotencyKey !== `${prefix}request:${row.recipientUserId}`) || proposal.targetUserId !== row.recipientUserId || (proposal.requiresOrganizerApproval && proposal.organizerApprovedAt === undefined)) return false;
+    // Once warned, the explicit overlap confirmation replaces the ordinary YES request.
+    if (participantRequest && proposal.overlapWarningJson) return false;
   } else {
     if (row.idempotencyKey !== `${prefix}approval:${row.recipientUserId}` || !proposal.requiresOrganizerApproval || proposal.organizerApprovedAt !== undefined) return false;
     const membership = await ctx.db.query("memberships").withIndex("by_event_user", q => q.eq("eventId", proposal.eventId).eq("userId", row.recipientUserId)).unique();
@@ -64,7 +71,21 @@ async function proposalRequestIsCurrent(ctx: MutationCtx, row: Doc<"outboundMess
   }
   const event = await ctx.db.get(proposal.eventId);
   const task = proposal.targetTaskId ? await ctx.db.get(proposal.targetTaskId) : null;
-  return event?.status === "scheduled" && event.version === proposal.eventVersionAtCreation && task?.eventId === event._id && task.version === proposal.taskVersionAtCreation && task.status !== "completed" && task.status !== "canceled";
+  if (!(event?.status === "scheduled" && event.version === proposal.eventVersionAtCreation && task?.eventId === event._id && task.version === proposal.taskVersionAtCreation && task.status !== "completed" && task.status !== "canceled")) return false;
+  if (overlapRequest) {
+    try {
+      const warning = OverlapWarningSchema.parse(JSON.parse(proposal.overlapWarningJson ?? "null"));
+      if (warning.confirmedByMessageId || row.idempotencyKey !== `${prefix}overlap:${warning.sourceMessageId}`) return false;
+      let effectiveTask = task;
+      if (proposal.type === "task_change") {
+        const action = ProposeTaskChangeActionSchema.parse(JSON.parse(proposal.taskChangeJson!));
+        if (action.field === "time") effectiveTask = { ...task, windowStart: Date.parse(action.newValue.startsAt), windowEnd: Date.parse(action.newValue.endsAt) };
+      }
+      const { snapshot } = await captureOverlap(ctx, event, effectiveTask, row.recipientUserId);
+      return canonicalJson(snapshot) === canonicalJson(warning.snapshot);
+    } catch { return false; }
+  }
+  return true;
 }
 
 /** Atomically claim once, recheck consent/current offer and recover routing only from inbound. */
@@ -73,6 +94,10 @@ export const claim = internalMutation({
   handler: async (ctx, args): Promise<import("convex/values").Infer<typeof dispatch> | null> => {
     const row = await ctx.db.get(args.outboundMessageId);
     if (!row || row.state !== "queued") return null;
+    if (await staleConversationReply(ctx, row)) {
+      await ctx.db.patch(row._id, { state: "failed" });
+      return null;
+    }
     if (!await canSend(ctx, row) || !await proposalRequestIsCurrent(ctx, row)) {
       await ctx.db.patch(row._id, { state: "failed" });
       return null;

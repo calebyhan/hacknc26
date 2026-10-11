@@ -8,6 +8,8 @@ import { hashCode, invitationCode, openEnvelope } from "./lib/messaging";
 import { parseCommand } from "../packages/shared/commands";
 import { withPublicErrors } from "./lib/publicErrors";
 import { messagingState } from "./lib/validators";
+import { AppPhoneLinkChallengeSchema, type AppRoute } from "../packages/shared/appStatus";
+import { phoneChallengeRoute } from "./lib/appStatus";
 
 /** Current verified app identity only; phone proof never implies event consent. */
 export const current = query({
@@ -29,22 +31,29 @@ export const register = mutation({
     return ctx.db.insert("users", { authSubject: identity.subject, displayName, messagingState: "active", createdAt: Date.now(), settings: {} });
   }),
 });
-const challenge = v.object({ invitationId: v.id("invitations"), code: v.string(), expiresAt: v.number() });
+const challenge = v.object({ invitationId: v.id("invitations"), code: v.string(), expiresAt: v.number(), route: v.union(v.object({ status: v.literal("available"), destination: v.string(), expiresAt: v.number() }), v.object({ status: v.literal("unavailable") })) });
 export const beginPhoneLink = mutation({
   args: { phoneE164: v.string(), idempotencyKey: v.string() }, returns: challenge,
-  handler: async (ctx, args): Promise<{ invitationId: Id<"invitations">; code: string; expiresAt: number }> => withPublicErrors(ctx, async () => {
+  handler: async (ctx, args): Promise<{ invitationId: Id<"invitations">; code: string; expiresAt: number; route: AppRoute }> => withPublicErrors(ctx, async () => {
     const user = await requireUser(ctx), phoneE164 = PhoneE164Schema.parse(args.phoneE164);
     const key = IdempotencyKeySchema.parse(args.idempotencyKey);
     if (user.verifiedPhoneE164 && user.verifiedPhoneE164 !== phoneE164) throw new Error("PHONE_CHANGE_NOT_SUPPORTED");
     const code = await invitationCode(JSON.stringify(["app-phone-link", user._id, key, phoneE164]));
     const codeHash = await hashCode(code);
     const existing = await ctx.db.query("invitations").withIndex("by_code_hash", q => q.eq("codeHash", codeHash)).unique();
-    if (existing) return { invitationId: existing._id, code, expiresAt: existing.expiresAt };
+    if (existing) {
+      if (existing.purpose !== "app_phone_link" || existing.inviterUserId !== user._id) throw new Error("UNAUTHORIZED");
+      const result = { invitationId: existing._id, code, expiresAt: existing.expiresAt, route: await phoneChallengeRoute(ctx, phoneE164, existing.expiresAt) };
+      AppPhoneLinkChallengeSchema.parse(result);
+      return result;
+    }
     const contactSelectionId = await ctx.db.insert("contactSelections", { ownerUserId: user._id, displayName: user.displayName, phoneE164, selectedAt: Date.now() });
     const expiresAt = Date.now() + 600000;
     const invitationId = await ctx.db.insert("invitations", { purpose: "app_phone_link", inviterUserId: user._id, targetUserId: user._id, contactSelectionId, codeHash, expiresAt, failedAttempts: 0, state: "pending" });
     await ctx.db.patch(contactSelectionId, { invitationId });
-    return { invitationId, code, expiresAt };
+    const result = { invitationId, code, expiresAt, route: await phoneChallengeRoute(ctx, phoneE164, expiresAt) };
+    AppPhoneLinkChallengeSchema.parse(result);
+    return result;
   }),
 });
 /** The app must possess its own session AND find its actual signed JOIN proof. */

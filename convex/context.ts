@@ -7,6 +7,7 @@ import { openEnvelope, senderFor } from "./lib/messaging";
 import { buildContextPacket, resolveEvent } from "../packages/shared/context";
 import type { ContextPendingProposal } from "../packages/shared/contextPacket";
 import { parseCommand } from "../packages/shared/commands";
+import { taskInstruction } from "./lib/taskInstructions";
 
 function plain<T extends { _id: string; _creationTime: number }>(doc: T) {
   const { _id, _creationTime: _unused, ...fields } = doc;
@@ -14,13 +15,14 @@ function plain<T extends { _id: string; _creationTime: number }>(doc: T) {
 }
 
 /** Reused by enqueue, claim and completion; all authority comes from storage. */
-async function readSourceContext(ctx: QueryCtx, messageId: Doc<"reasoningJobs">["messageId"]) {
+export async function readSourceContext(ctx: QueryCtx, messageId: Doc<"reasoningJobs">["messageId"]) {
   const message = await ctx.db.get(messageId);
   if (!message || message.provider !== "spectrum" || message.contentType !== "text/plain" || Date.now() - message.receivedAt > 15 * 60_000) throw new Error("INVALID_JOB_SOURCE");
   const user = await senderFor(ctx, message);
   if (!user || user.messagingState !== "active") throw new Error("SENDER_NOT_PERMITTED");
   const envelope = await openEnvelope(message);
   if (parseCommand(envelope.text).type !== "UNKNOWN") throw new Error("COMMAND_REQUIRES_NO_MODEL");
+  const instruction = await taskInstruction(ctx, message, user);
   const memberships = (await ctx.db.query("memberships").withIndex("by_user", (q) => q.eq("userId", user._id)).collect()).filter((m) => m.state === "enrolled");
   const consented = [];
   for (const membership of memberships) {
@@ -33,8 +35,16 @@ async function readSourceContext(ctx: QueryCtx, messageId: Doc<"reasoningJobs">[
   const eventTasks = (await Promise.all(events.map((event) => ctx.db.query("tasks").withIndex("by_event", (q) => q.eq("eventId", event._id)).collect()))).flat();
   const proposalDocs = (await ctx.db.query("proposals").withIndex("by_target", (q) => q.eq("targetUserId", user._id)).collect()).filter((p) => p.state === "pending" && p.expiresAt > Date.now() && (!p.requiresOrganizerApproval || p.organizerApprovedAt !== undefined) && events.some((event) => event._id === p.eventId && event.version === p.eventVersionAtCreation) && p.targetTaskId && eventTasks.some(task => task._id === p.targetTaskId && task.eventId === p.eventId && task.version === p.taskVersionAtCreation && !["completed", "canceled"].includes(task.status)));
   const pending: ContextPendingProposal[] = proposalDocs.map((p) => ({ id: p._id, eventId: p.eventId, targetUserId: user._id, type: p.type, expiresAt: new Date(p.expiresAt).toISOString(), eventVersionAtCreation: p.eventVersionAtCreation, ...(p.targetTaskId ? { targetTaskId: p.targetTaskId } : {}), ...(p.taskVersionAtCreation === undefined ? {} : { taskVersionAtCreation: p.taskVersionAtCreation }) }));
-  const resolution = resolveEvent({ senderUserId: user._id, incomingText: envelope.text, events: events.map(plain), memberships: consented.map(plain), tasks: eventTasks.map(plain), pendingProposalsForSender: pending, recentFocus: focus?.lastEventId ? { eventId: focus.lastEventId, expiresAt: focus.expiresAt } : null, now: Date.now() });
-  return { message, user, envelope, consented, events, focus, pending, eventTasks, resolution };
+  const resolution = resolveEvent({ senderUserId: user._id, incomingText: instruction.text, events: events.map(plain), memberships: consented.map(plain), tasks: eventTasks.map(plain), pendingProposalsForSender: pending, recentFocus: focus?.lastEventId ? { eventId: focus.lastEventId, expiresAt: focus.expiresAt } : null, now: Date.now() });
+  if (instruction.selectedTaskId) {
+    const task = eventTasks.find(item => item._id === instruction.selectedTaskId);
+    if (!task) throw new Error("EVENT_NOT_PERMITTED");
+    resolution.selectedEventId = task.eventId;
+    resolution.candidateIds = [task.eventId];
+    resolution.requiresClarification = false;
+    resolution.reasonCodes = ["VERIFIED_TASK_CLARIFICATION"];
+  }
+  return { message, user, envelope, instruction, consented, events, focus, pending, eventTasks, resolution };
 }
 
 /** The router and queue use the same resolver; an ambiguous request stays unscoped. */
@@ -45,7 +55,7 @@ export async function resolveMessageJob(ctx: QueryCtx, messageId: Doc<"reasoning
 }
 
 export async function readJobContext(ctx: QueryCtx, job: Pick<Doc<"reasoningJobs">, "messageId" | "eventId" | "contextVersion" | "taskVersions">) {
-  const { message, user, envelope, consented, events, focus, pending, eventTasks, resolution } = await readSourceContext(ctx, job.messageId);
+  const { message, user, instruction, consented, events, focus, pending, eventTasks, resolution } = await readSourceContext(ctx, job.messageId);
   const selected = job.eventId ? events.find((event) => event._id === job.eventId) : null;
   const membership = selected ? consented.find((m) => m.eventId === selected._id) : undefined;
   if (job.eventId) {
@@ -66,7 +76,7 @@ export async function readJobContext(ctx: QueryCtx, job: Pick<Doc<"reasoningJobs
       participants.push(participant); participantMemberships.push(member);
     }
   }
-  const packet = buildContextPacket({ messageId: message._id, sender: plain(user), senderRole: membership?.role ?? "member", incomingText: envelope.text, selectedEvent: selected ? plain(selected) : null, candidateEvents: events.filter((event) => resolution.candidateIds.includes(event._id)).map(plain), relevantTasks: tasks.map(plain), commitments: commitments.map(plain), participants: participants.map(plain), memberships: participantMemberships.map(plain), pendingProposalsForSender: pending, recentEventFocusId: focus && focus.expiresAt > Date.now() ? focus.lastEventId ?? null : null });
+  const packet = buildContextPacket({ messageId: message._id, sender: plain(user), senderRole: membership?.role ?? "member", incomingText: instruction.text, currentTime: Date.now(), selectedTaskId: instruction.selectedTaskId, recentTaskFocusId: focus && focus.expiresAt > Date.now() ? focus.lastTaskId ?? null : null, selectedEvent: selected ? plain(selected) : null, candidateEvents: events.filter((event) => resolution.candidateIds.includes(event._id)).map(plain), relevantTasks: tasks.map(plain), commitments: commitments.map(plain), participants: participants.map(plain), memberships: participantMemberships.map(plain), pendingProposalsForSender: pending, recentEventFocusId: focus && focus.expiresAt > Date.now() ? focus.lastEventId ?? null : null });
   return { packet, user, message, membership };
 }
 

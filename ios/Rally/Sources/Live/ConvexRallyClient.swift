@@ -141,13 +141,16 @@ final class ConvexRallyClient: RallyClient {
         AsyncThrowingStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
             let token = SubscriptionLifetime()
             continuation.onTermination = { _ in token.cancel() }
-            token.store(publisher.sink { completion in
+            // Convex delivers values and failures on its Rust worker threads.
+            // Sendable callbacks must not inherit this client's MainActor;
+            // the stream consumer handles actor-isolated UI updates.
+            token.store(publisher.sink { @Sendable completion in
                 switch completion {
                 case .finished: continuation.finish()
                 case .failure(let error):
                     continuation.finish(throwing: PublicBackendError.sanitize(error, fallback: "This data could not be loaded for your account. Retry or sign in again. Previously loaded data has been cleared."))
                 }
-            } receiveValue: { value in
+            } receiveValue: { @Sendable value in
                 continuation.yield(value)
             })
         }

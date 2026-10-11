@@ -5,6 +5,40 @@ import XCTest
 
 @MainActor
 final class AdapterTests: XCTestCase {
+    func testPhoneChallengeDecodesItsAssignedBotDestinationBeforePhoneProof() async throws {
+        let transport = FixtureAPITransport()
+        transport.result = #"{"invitationId":"fixture-link","code":"FIXTURE-ONLY","expiresAt":2000000000000,"route":{"status":"available","destination":"+15550009999","expiresAt":2000000000000}}"#
+        let challenge = try await ConvexRallyClient(transport: transport).beginPhoneLink(phoneE164: "+15550100001", idempotencyKey: "fixture-assigned-link")
+        XCTAssertEqual(challenge.route?.destination(at: Date(timeIntervalSince1970: 1_900_000_000)), "+15550009999")
+        XCTAssertNil(challenge.route?.destination(at: Date(timeIntervalSince1970: 2_000_000_001)))
+    }
+    func testBackgroundAccountUpdateAndCompletionDoNotCrashAfterLogin() async throws {
+        let transport = FixtureAPITransport()
+        transport.subscriptionQueue = DispatchQueue(label: "rally.fixture.backend-callback")
+        transport.subscriptionResult = #"{"userId":"current-user","displayName":"Alex","phoneLinked":false,"messagingState":"active"}"#
+        let client = ConvexRallyClient(transport: transport)
+        var account = client.account().makeAsyncIterator()
+
+        let status = try await account.next()
+        XCTAssertEqual(status?.userId, "current-user")
+        let end = try await account.next()
+        XCTAssertNil(end)
+    }
+
+    func testBackgroundProtectedQueryFailureIsSanitizedWithoutCrashing() async {
+        let transport = FixtureAPITransport()
+        transport.subscriptionQueue = DispatchQueue(label: "rally.fixture.backend-error")
+        transport.subscriptionFailure = .ServerError(msg: "private-token unauthorized event content")
+        let client = ConvexRallyClient(transport: transport)
+        var account = client.account().makeAsyncIterator()
+
+        do { _ = try await account.next(); XCTFail("Expected query failure") }
+        catch {
+            XCTAssertTrue(error.localizedDescription.contains("cleared"))
+            XCTAssertFalse(error.localizedDescription.contains("private-token"))
+        }
+    }
+
     func testAccountAndPhoneRequestsNeverSendClientAuthority() async throws {
         let transport = FixtureAPITransport()
         let client = ConvexRallyClient(transport: transport)
@@ -181,6 +215,7 @@ private final class FixtureAPITransport: RallyAPITransport {
     var failure: (any Error)?
     var subscriptionResult: String?
     var subscriptionFailure: ClientError?
+    var subscriptionQueue: DispatchQueue?
 
     func mutation<Result: Decodable & Sendable>(_ name: String, arguments: sending [String: ConvexEncodable?]) async throws -> Result {
         calls.append(Call(name: name, arguments: try arguments.mapValues { try $0?.convexEncode() ?? "null" }))
@@ -191,14 +226,19 @@ private final class FixtureAPITransport: RallyAPITransport {
     func subscribe<Value: Decodable & Sendable>(_ name: String, arguments: [String: ConvexEncodable?]) -> AnyPublisher<Value, ClientError> {
         do {
             calls.append(Call(name: name, arguments: try arguments.mapValues { try $0?.convexEncode() ?? "null" }))
-            if let subscriptionFailure { return Fail(error: subscriptionFailure).eraseToAnyPublisher() }
+            if let subscriptionFailure { return deliver(Fail(error: subscriptionFailure).eraseToAnyPublisher()) }
             guard let subscriptionResult else {
                 return Fail(error: ClientError.ServerError(msg: "private-token unauthorized event content")).eraseToAnyPublisher()
             }
             let value = try JSONDecoder().decode(Value.self, from: Data(subscriptionResult.utf8))
-            return Just(value).setFailureType(to: ClientError.self).eraseToAnyPublisher()
+            return deliver(Just(value).setFailureType(to: ClientError.self).eraseToAnyPublisher())
         } catch {
             return Fail(error: ClientError.InternalError(msg: "Fixture decoding failed")).eraseToAnyPublisher()
         }
+    }
+
+    private func deliver<Value>(_ publisher: AnyPublisher<Value, ClientError>) -> AnyPublisher<Value, ClientError> {
+        guard let subscriptionQueue else { return publisher }
+        return publisher.receive(on: subscriptionQueue).eraseToAnyPublisher()
     }
 }

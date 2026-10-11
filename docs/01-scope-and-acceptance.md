@@ -43,6 +43,11 @@ For the October 10 integrated implementation, local rehearsal evidence and remai
 | A8 | Local worker offline | Participant replies yes to pending invitation | Deterministic acceptance succeeds |
 | A9 | Person selected from Contacts but not opted in | Organizer creates event | No automatic outbound cold contact |
 | A10 | Two participants race for one exclusive task | Both accept offers | Single assignment with conflict-safe resolution; loser informed accurately |
+| A11 | A task needs two people and has multiple valid offers | Two different participants accept | Each gets one active commitment, compatible pending offers survive the first acceptance, and duplicate or excess acceptance cannot exceed capacity |
+| A12 | A participant has an overlapping active responsibility | They reply YES to a new offer, or explicitly volunteer for it | Rally warns with no commitment changes. A later signed `CONFIRM OVERLAP <offer reference>` accepts only the current warned overlap; ordinary YES, stale confirmation or model text cannot override the warning |
+| A13 | A task change affects several assignees | One assignee's overlapping commitments change before everyone approves | That person must renew consent; the task's current details remain unchanged until all affected assignees accept the current details |
+
+Tasks may overlap and each may require several people. A12 is a warning-and-confirmation policy for an individual taking overlapping responsibilities, including their active commitments in other events. It never bypasses explicit unavailability, membership/consent, skills or staffing limits. Other-event task names stay private. `convex/teamTasks.test.ts` and the messaging/domain integration suite exercise these rules with synthetic senders and a fake provider; live delivery remains a separate gate.
 
 ## P0 demo-ready gate
 

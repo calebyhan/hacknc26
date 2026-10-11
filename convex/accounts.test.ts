@@ -40,7 +40,10 @@ describe("app identity and actual phone proof (simulation)", () => {
     const canonical = (await t.run(ctx => ctx.db.query("users").withIndex("by_phone", q => q.eq("verifiedPhoneE164", "+15550000001")).unique()))!;
     const provisional = await app.mutation(api.accounts.register, { displayName: "Alex" });
     const challenge = await app.mutation(api.accounts.beginPhoneLink, { phoneE164: "+15550000001", idempotencyKey: "proof" });
-    await inbound(t, `JOIN ${challenge.code}`);
+    await t.mutation(internal.commands.route, { messageId: await inbound(t, `JOIN ${challenge.code}`) });
+    expect((await t.run(ctx => ctx.db.query("outboundMessages").collect())).at(-1)?.content).toBe("Phone proof received. Return to Rally and tap Check phone verification to finish linking your account.");
+    expect(await t.run(ctx => ctx.db.get(provisional))).toMatchObject({ authSubject: "simulation|app-user" });
+    expect((await t.run(ctx => ctx.db.get(canonical._id)))?.authSubject).toBeUndefined();
     expect(await app.mutation(api.accounts.completePhoneLink, { invitationId: challenge.invitationId })).toBe(canonical._id);
     expect(await app.mutation(api.accounts.completePhoneLink, { invitationId: challenge.invitationId })).toBe(canonical._id);
     expect(await t.run(ctx => ctx.db.get(provisional))).toBeNull();
@@ -51,8 +54,50 @@ describe("app identity and actual phone proof (simulation)", () => {
     await t.run(ctx => ctx.db.insert("users", { authSubject: "simulation|other-person", displayName: "Other", verifiedPhoneE164: "+15550000001", createdAt: Date.now(), messagingState: "active", settings: {} }));
     await app.mutation(api.accounts.register, { displayName: "Alex" });
     const challenge = await app.mutation(api.accounts.beginPhoneLink, { phoneE164: "+15550000001", idempotencyKey: "conflict" });
-    await inbound(t, `JOIN ${challenge.code}`);
+    await t.mutation(internal.commands.route, { messageId: await inbound(t, `JOIN ${challenge.code}`) });
+    expect((await t.run(ctx => ctx.db.query("outboundMessages").collect())).at(-1)?.content).toContain("couldn't verify");
     await expect(app.mutation(api.accounts.completePhoneLink, { invitationId: challenge.invitationId })).rejects.toMatchObject({ data: { version: 1, code: "PHONE_IDENTITY_CONFLICT" } });
+  });
+  it("accepts a first-message app JOIN while leaving final linking to the authenticated app", async () => {
+    const { t, app } = setup();
+    const provisional = await app.mutation(api.accounts.register, { displayName: "Alex" });
+    const challenge = await app.mutation(api.accounts.beginPhoneLink, { phoneE164: "+15550000001", idempotencyKey: "first-phone-message" });
+    const messageId = await inbound(t, `JOIN ${challenge.code}`);
+    await t.mutation(internal.commands.route, { messageId });
+    const canonical = (await t.run(ctx => ctx.db.query("users").withIndex("by_phone", q => q.eq("verifiedPhoneE164", "+15550000001")).unique()))!;
+    expect(canonical.authSubject).toBeUndefined();
+    expect((await t.run(ctx => ctx.db.get(provisional)))?.verifiedPhoneE164).toBeUndefined();
+    expect((await t.run(ctx => ctx.db.get(challenge.invitationId)))?.state).toBe("pending");
+    expect(await app.mutation(api.accounts.completePhoneLink, { invitationId: challenge.invitationId })).toBe(canonical._id);
+    expect(await app.mutation(api.accounts.completePhoneLink, { invitationId: challenge.invitationId })).toBe(canonical._id);
+    await t.mutation(internal.commands.route, { messageId });
+    expect(await t.run(ctx => ctx.db.query("outboundMessages").collect())).toHaveLength(1);
+    expect(await t.run(ctx => ctx.db.query("memberships").collect())).toEqual([]);
+  });
+  it("acknowledges signed phone proof when the app finishes linking before the router runs", async () => {
+    const { t, app } = setup();
+    await app.mutation(api.accounts.register, { displayName: "Alex" });
+    const challenge = await app.mutation(api.accounts.beginPhoneLink, { phoneE164: "+15550000001", idempotencyKey: "complete-before-routing" });
+    const messageId = await inbound(t, `JOIN ${challenge.code}`);
+    const userId = await app.mutation(api.accounts.completePhoneLink, { invitationId: challenge.invitationId });
+    await t.mutation(internal.commands.route, { messageId });
+    const rows = await t.run(ctx => ctx.db.query("outboundMessages").collect());
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ recipientUserId: userId, content: "Phone proof received. Return to Rally and tap Check phone verification to finish linking your account." });
+    expect(await t.run(ctx => ctx.db.query("memberships").collect())).toEqual([]);
+  });
+  it("shows only the provider-assigned bot destination for this app's phone-link request", async () => {
+    const { t, app } = setup();
+    await app.mutation(api.accounts.register, { displayName: "Alex" });
+    await t.mutation(internal.appStatus.recordProvisionedRoute, { participantPhoneE164: "+15550000001", destination: "+15550009999", verifiedAt: Date.now(), expiresAt: Date.now() + 86400000, providerReference: "fixture-provider-allocation" });
+    const own = await app.mutation(api.accounts.beginPhoneLink, { phoneE164: "+15550000001", idempotencyKey: "assigned-contact" });
+    expect(own.route).toMatchObject({ status: "available", destination: "+15550009999" });
+    expect(await app.query(api.appStatus.route, {})).toEqual({ status: "unavailable" });
+    const unassigned = await app.mutation(api.accounts.beginPhoneLink, { phoneE164: "+15550000002", idempotencyKey: "unassigned-contact" });
+    expect(unassigned.route).toEqual({ status: "unavailable" });
+    expect(await t.run(ctx => ctx.db.query("outboundMessages").collect())).toEqual([]);
+    vi.advanceTimersByTime(86400001);
+    expect((await app.mutation(api.accounts.beginPhoneLink, { phoneE164: "+15550000001", idempotencyKey: "expired-contact" })).route).toEqual({ status: "unavailable" });
   });
   it("expires challenges and checks the invitation belongs to the authenticated app user", async () => {
     const { t, app } = setup(); await app.mutation(api.accounts.register, { displayName: "Alex" });
