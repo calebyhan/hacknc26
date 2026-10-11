@@ -27,10 +27,10 @@ describe("Convex bootstrap stubs (in-memory simulation)", () => {
     const t = convexTest(schema, modules);
     await expect(t.mutation(api.reasoningJobs.claim, {
       workerToken: "fake-token-not-a-secret", workerId: "fixture-worker",
-    })).rejects.toThrow("NOT_IMPLEMENTED(lane-c)");
+    })).rejects.toThrow("WORKER_UNAUTHORIZED");
     await expect(t.mutation(api.reasoningJobs.heartbeat, {
       workerToken: "fake-token-not-a-secret", workerId: "fixture-worker",
-    })).rejects.toThrow("NOT_IMPLEMENTED(lane-c)");
+    })).rejects.toThrow("WORKER_UNAUTHORIZED");
     expect(await t.run(async (ctx) => ctx.db.query("reasoningJobs").collect())).toEqual([]);
     expect(await t.run(async (ctx) => ctx.db.query("workerHeartbeats").collect())).toEqual([]);
   });

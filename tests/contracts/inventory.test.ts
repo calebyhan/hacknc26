@@ -70,7 +70,7 @@ describe("frozen backend contract", () => {
     for (const entry of expected) expect(actual).toContainEqual(entry);
     for (const [name, kind] of actual) {
       if (!expected.some(([expectedName]) => expectedName === name)) {
-        expect(["outbox.claim", "outbox.settle", "outbox.markUnknown", "spectrumSender.deliver", "spectrum.checkRuntime", "spectrum.verifyRuntimeCrypto"]).toContain(name);
+        expect(["outbox.claim", "outbox.settle", "outbox.markUnknown", "spectrumSender.deliver", "spectrum.checkRuntime", "spectrum.verifyRuntimeCrypto", "reasoningJobs.expire"]).toContain(name);
         expect(kind).toMatch(/^internal /);
       }
     }

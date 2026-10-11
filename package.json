@@ -20,7 +20,12 @@
     "messaging:configure": "node scripts/configure-messaging.mjs",
     "domain:setup": "node --env-file-if-exists=.env.local scripts/domain-setup.mjs",
     "convex:codegen": "convex codegen --typecheck disable",
-    "worker": "npm run start --workspace @rally/worker"
+    "worker": "npm run start --workspace @rally/worker",
+    "worker:configure": "node --import tsx worker/src/setup.ts",
+    "worker:status": "node --import tsx worker/src/status.ts",
+    "auth:login": "node --import tsx worker/src/auth.ts",
+    "eval:fake": "npm run eval:fake --workspace @rally/worker",
+    "eval:live": "npm run eval:live --workspace @rally/worker"
   },
   "dependencies": {
     "@grpc/grpc-js": "1.14.6",

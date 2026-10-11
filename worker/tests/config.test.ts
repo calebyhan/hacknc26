@@ -5,7 +5,7 @@ import { loadWorkerConfig, WorkerConfigError } from "../src/config.ts";
 
 const validEnvironment = {
   CONVEX_URL: "https://bootstrap-fixture.convex.cloud",
-  RALLY_WORKER_TOKEN: "fake-worker-token-do-not-use",
+  RALLY_WORKER_TOKEN: "fake-worker-token-do-not-use-123456789",
   RALLY_MODEL: "test-model-no-provider",
 };
 
@@ -15,6 +15,7 @@ describe("worker configuration", () => {
       convexUrl: validEnvironment.CONVEX_URL,
       workerToken: validEnvironment.RALLY_WORKER_TOKEN,
       model: validEnvironment.RALLY_MODEL,
+      provider: "claude",
     });
   });
 
@@ -70,13 +71,18 @@ describe("worker configuration", () => {
       loadWorkerConfig({ ...validEnvironment, CONVEX_URL: "http://127.0.0.1:3210" }).convexUrl,
     ).toBe("http://127.0.0.1:3210");
   });
+  it("selects Codex explicitly and rejects unknown providers or API-key billing", () => {
+    expect(loadWorkerConfig({ ...validEnvironment, RALLY_PROVIDER: "codex" }).provider).toBe("codex");
+    expect(() => loadWorkerConfig({ ...validEnvironment, RALLY_PROVIDER: "unexpected" })).toThrow("RALLY_PROVIDER must be claude or codex");
+    expect(() => loadWorkerConfig({ ...validEnvironment, OPENAI_API_KEY: "fixture-secret" })).toThrow("OpenAI API keys are not authorized");
+  });
 });
 
 describe("worker entrypoint", () => {
   const entrypoint = fileURLToPath(new URL("../src/index.ts", import.meta.url));
 
   it("exits unsuccessfully with actionable missing configuration", () => {
-    const result = spawnSync(process.execPath, [entrypoint], {
+    const result = spawnSync(process.execPath, ["--import", "tsx", entrypoint], {
       env: {},
       encoding: "utf8",
       timeout: 5_000,
@@ -89,24 +95,24 @@ describe("worker entrypoint", () => {
     );
   });
 
-  it("validates configuration and exits honestly without starting a worker", () => {
-    const result = spawnSync(process.execPath, [entrypoint], {
-      env: validEnvironment,
+  it("rejects API-key billing before starting a worker or network request", () => {
+    const result = spawnSync(process.execPath, ["--import", "tsx", entrypoint], {
+      env: { ...validEnvironment, ANTHROPIC_API_KEY: "fixture-key-not-authorized" },
       encoding: "utf8",
       timeout: 5_000,
     });
     expect(result.error).toBeUndefined();
-    expect(result.status).toBe(0);
-    expect(result.stderr).toBe("");
-    expect(result.stdout).toContain("NOT_IMPLEMENTED(lane-c)");
-    expect(result.stdout).toContain("no worker was started");
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("ANTHROPIC_API_KEY is not authorized");
+    expect(result.stderr).not.toContain("fixture-key-not-authorized");
     for (const value of Object.values(validEnvironment)) {
       expect(result.stdout + result.stderr).not.toContain(value);
     }
   });
 
   it("does not leak secrets on invalid configuration", () => {
-    const result = spawnSync(process.execPath, [entrypoint], {
+    const result = spawnSync(process.execPath, ["--import", "tsx", entrypoint], {
       env: { ...validEnvironment, CONVEX_URL: "not-a-url-secret" },
       encoding: "utf8",
       timeout: 5_000,

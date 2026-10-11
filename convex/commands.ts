@@ -5,6 +5,7 @@ import { openEnvelope, senderFor } from "./lib/messaging";
 import { parseCommand } from "../packages/shared/commands";
 import { controlCopy, helpCopy, invalidJoinCopy, onboardingCopy, pendingCounts, renderStatus, unavailableCopy } from "../packages/shared/copy";
 import type { Id } from "./_generated/dataModel";
+import { resolveMessageJob } from "./context";
 
 /**
  * Lane A: load persisted verified inbound, then shared parseCommand. Derive the
@@ -118,16 +119,10 @@ export const route = internalMutation({
           if (pending && /^(maybe|probably)\b/iu.test(envelope.text.trim())) { await reply("No acceptance recorded. Please reply YES or NO.", scope); break; }
           const recent = await ctx.db.query("inboundMessages").withIndex("by_sender", (q) => q.eq("senderPhone", message.senderPhone)).order("desc").take(31);
           if (recent.filter((m) => m.receivedAt > Date.now() - 60_000).length > 30) { await reply("Too many requests. Please wait a minute before trying again.", scope); break; }
-          const focus = await ctx.db.query("conversationFocus").withIndex("by_user", (q) => q.eq("userId", sender._id)).unique();
-          const accessibleEvents = await Promise.all(memberships.map((membership) => ctx.db.get(membership.eventId)));
-          const explicit = accessibleEvents.filter((event) => event && envelope.text.toLowerCase().includes(event.title.toLowerCase()));
-          const eventId = explicit.length === 1 ? explicit[0]!._id : explicit.length > 1 ? undefined : focus && focus.expiresAt > Date.now() && memberships.some((m) => m.eventId === focus.lastEventId) ? focus.lastEventId : memberships.length === 1 ? scope : undefined;
-          if (!eventId) { await reply("Which of your events is this about? Please include its name.", scope); break; }
-          const event = await ctx.db.get(eventId);
-          if (!event) throw new Error("EVENT_NOT_FOUND");
-          const tasks = await ctx.db.query("tasks").withIndex("by_event", (q) => q.eq("eventId", eventId)).collect();
-          await ctx.runMutation(internal.reasoningJobs.enqueue, { messageId: message._id, eventId, contextVersion: event.version, taskVersions: tasks.map((task) => ({ taskId: task._id, version: task.version })) });
-          await reply("I've queued your request for review. No assignment has changed yet.", eventId);
+          const job = await resolveMessageJob(ctx, message._id);
+          if (!job.eventId) { await reply("Which of your events is this about? Please include its name.", scope); break; }
+          await ctx.runMutation(internal.reasoningJobs.enqueue, job);
+          await reply("I've queued your request for review. No assignment has changed yet.", job.eventId);
           break;
         }
       }

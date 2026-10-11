@@ -4,8 +4,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node --env-file-if-exists=../.env.local src/index.ts",
+    "start": "node --env-file-if-exists=../.env.local --import tsx src/index.ts",
+    "eval:fake": "node --import tsx src/eval.ts",
+    "eval:live": "node --env-file-if-exists=../.env.local --import tsx src/eval.ts --live",
     "typecheck": "tsc --project tsconfig.json --noEmit",
     "test": "vitest run"
+  },
+  "devDependencies": {
+    "tsx": "4.23.15"
+  },
+  "dependencies": {
+    "jose": "6.2.12"
   }
 }
