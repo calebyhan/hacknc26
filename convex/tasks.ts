@@ -1,3 +1,4 @@
+import { withPublicErrors } from "./lib/publicErrors";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { mutation } from "./_generated/server";
@@ -19,8 +20,8 @@ export const create = mutation({
     idempotencyKey: v.string(),
   },
   returns: v.id("tasks"),
-  handler: async (ctx, args): Promise<Id<"tasks">> => {
+  handler: async (ctx, args): Promise<Id<"tasks">> => withPublicErrors(ctx, async () => {
     const { user } = await requireOrganizer(ctx, args.eventId);
     return createTask(ctx, user._id, args);
-  },
+  }),
 });

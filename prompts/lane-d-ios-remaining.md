@@ -1,82 +1,85 @@
-# Lane D — Finish iOS integration and acceptance
+# Lane D — Local integration complete; live acceptance deferred
 
-Continue the existing SwiftUI companion toward **T6**, **M2** and **ST-15**. The app remains setup/status; everyday coordination stays in iMessage. This is the continuation checklist after the initial UI slice, not a request to rebuild it.
+Continue Rally's SwiftUI setup/status companion toward **T6**, **M2** and **ST-15**. Everyday coordination remains in iMessage. Preserve the existing app and its tested contracts.
 
-Work in the existing repository checkout on **`lane/d-ios`**. The user requested ordinary branch work, not a separate worktree. Inspect and preserve the current uncommitted implementation before editing.
+## Current status — 2026-10-10
+
+Lane D and A/B were merged into `main` at `b73fba8`. The continuation is on `lane/d-ios-integration`; do not resume the old `lane/d-ios` tip. The initial app-wiring commit is `0846984`. The latest continuation also implements the formerly missing account, consent, routing, activity/progress and public-error contracts. There are no remaining Lane D code-contract blockers from the previous checklist. The final local gate passed **225 backend tests, 73 iOS unit tests and eight simulator UI tests**, with zero failures.
+
+See [the app README](../ios/Rally/README.md) for local build/test results and [implemented app contracts](../docs/22-ios-app-contracts.md) for exact APIs, privacy rules and trusted route provisioning. These are local implementation results, not live acceptance. **M1 live verification remains pending; T6/M2/ST-15 stay open.** Lane C reasoning/worker work remains separate.
+
+## Authorization and working boundary
+
+The user requested **everything in this Lane D continuation except live testing**. Local code, fixtures, injected adapters, backend tests and simulator checks are authorized. Live login, deployment/cloud mutations, provider configuration, real sends and physical-device acceptance are deferred until the user resumes them. No missing phone or live session should block independent code maintenance.
+
+Inspect Git status and preserve existing work, ignored `ios/Rally/Configuration/Local.xcconfig`, credentials and signing settings. Never fabricate real consent, seed a real participant as opted in, or silently switch a failed live connection to demo. Commit only scoped source/docs/tests; exclude generated test artifacts and local configuration.
 
 ## Read first
 
-1. `AGENTS.md` and its mandatory reading order if this is a new session.
-2. `prompts/lane-d-ios.md` — original scope and ownership.
-3. `ios/Rally/README.md` — build, configuration, test instructions and implementation evidence.
-4. `docs/07-ios-companion.md` — required screens and behavior.
-5. `docs/06-workflows.md#status-vocabulary` and `docs/03-data-model.md#canonical-state-enums`.
-6. `docs/10-security-privacy.md`, `docs/17-workstreams.md`, `docs/16-agent-task-board.md#t6--swiftui-companion` and `docs/11-testing-and-demo.md`.
+1. `AGENTS.md` and its mandatory reading order on a new session.
+2. `ios/Rally/README.md` and `docs/22-ios-app-contracts.md`.
+3. `docs/07-ios-companion.md`, `docs/06-workflows.md#status-vocabulary`, `docs/03-data-model.md#canonical-state-enums` and `docs/10-security-privacy.md`.
+4. `docs/20-domain-evidence.md`, `docs/21-messaging-domain-integration.md` and `docs/17-workstreams.md`.
+5. `prompts/m1-messaging-domain.md`, `prompts/m2-ai-and-app.md` and `docs/11-testing-and-demo.md` for the deferred checkpoints.
 
-## Current state — verify before continuing
+## Implemented behavior to preserve
 
-- SwiftUI screens, contract models, explicit local demo fixtures, selected-contact review and Convex/Auth0 adapters exist under `ios/Rally/`.
-- Auth0's public Native application settings and the Convex URL are in ignored `Configuration/Local.xcconfig`. Do not replace them with examples or commit the local file.
-- The user reported successful simulator Auth0 sign-in; the app visibly returned to its live event screen. That screen was reconnecting/loading. Authorized event reads and backend token acceptance have not been proved.
-- A Swift 6 actor-isolation crash was fixed by scheduling auth/connectivity notifications on the main queue after reducing SDK payloads to flags. Keep that boundary intact.
-- **16 iOS unit tests** passed, including the SDK background-login regression. **Five distinct UI tests** passed for demo creation, assignment separation/acceptance, invitations, large text and picker cancellation/reopening. These tests do not prove live backend authorization or real messaging.
-- Xcode 27.0 is installed; iOS 26.2 simulator behavior was checked. The intended physical device is an **iPhone 16 Pro on iOS 27.0.1**, using direct temporary Xcode installation. Physical-device installation is unverified.
-- At the last inspection, this branch had no `convex/auth.config.ts`; app handlers and authorization helpers remained throwing stubs. Other lanes or deployments may have progressed, so inspect before declaring a blocker.
-- Phone linking and activity history currently report unavailable capability. Demo invitation codes and simulated acceptance are explicitly labeled.
+- **Authenticated account readiness:** register the signed-in identity with its display name, then wait for `accounts.current` before exposing protected views. Continuously observe canonical ID and server-verified phone state; recreate scoped views after canonical changes and clear protected state on revoked/unavailable account reads. Auth0 login alone is not phone proof.
+- **Phone proof:** create/renew a challenge, display JOIN/expiry, and explicitly check completion. A pending/expired challenge cannot enable live event creation. Already linked accounts restore their proof from the authorized query without another challenge. Phone linking does not grant event consent.
+- **Event/task setup:** create drafts, specify task time windows in the event timezone, review and confirm with the current event version. Encode integer Unix milliseconds as JSON numbers; omit absent optionals. Confirmation schedules the event but does not assign tasks.
+- **Event opt-in and contacts:** organizer app membership is separate from event JOIN consent. Show organizer JOIN code/expiry only when needed. Native contact selection reviews only the chosen name/number; one participant per submission keeps code handoff unambiguous. Codes send nothing and do not enroll recipients. An invitee must use their own provisioned Rally conversation.
+- **Approval and committed state:** organizer approval permits a request but never substitutes for the target's acceptance. Refresh authorized state after uncertain/no-op mutations. Preserve reviewed input and request keys on retries; an explicit new request must not silently duplicate an uncertain write. Idle pending offers expire in the UI.
+- **Status and activity:** show canonical task counts, caller-specific event consent/global messaging controls, redacted bounded event activity and only the caller's delivery states. `sent` is provider accepted; `delivered` requires a receipt. Connectivity is neither delivery nor worker health.
+- **Messages shortcut:** accept only the backend's current caller route with strict E.164 and future expiry. Disable on stale connections and at expiry, recheck at tap, and never include an automatic send. Missing/shared/invalid routing remains unavailable. Demo uses a labeled fictional route and cannot open Messages.
+- **Safe failures:** parse only strict versioned SDK ConvexError data; raw server text stays generic. Authentication expiry clears the session; failed or denied queries clear protected results. Unknown enums remain conservative.
+- **Local demo:** explicit in-memory phone proof, organizer consent and participant acceptance controls are simulation only. New events do not inherit sample-event consent. No test fixture calls a messaging provider.
 
-## You own
+## Implemented API surface
 
-`ios/`, plus this lane's prompt/app documentation. Consume the frozen `events.myEvents`, `events.detail`, `events.create`, `tasks.create` and `invitations.createForContacts` contracts. Lane B owns backend identity, membership and domain functions; Lane A owns phone linking, invitation redemption and Photon routing.
+Swift names use `module:function`; inspect server validators for full inputs/results.
 
-For missing queries/fields, prepare an additive `contract:` PR for Lane B review. Do not implement another lane's backend files directly. Continue independent app work while dependencies are unavailable, and record exact blockers rather than inventing data or treating mock evidence as live evidence.
+| API | Purpose |
+|---|---|
+| `accounts.register`, `accounts.current` | Caller registration and canonical/verified account read |
+| `accounts.beginPhoneLink`, `accounts.completePhoneLink` | Short-lived challenge and actual signed JOIN proof check |
+| `events.myEvents`, `events.detail` | Authorized event/task/member/proposal subscriptions |
+| `events.create`, `events.confirmDraft`, `tasks.create` | Organizer setup with stable keys and version checks |
+| `events.organizerInvitation`, `invitations.createForContacts` | Explicit opt-in invitations; no sends or automatic enrollment |
+| `proposals.approve` | Authenticated organizer approval; separate participant response |
+| `appStatus.overview`, `appStatus.event`, `appStatus.route` | Authorized progress, consent, activity, caller-only delivery and contact routing |
+| Internal `appStatus.recordProvisionedRoute`, `appStatus.revokeProvisionedRoute` | Trusted provider-allocation handoff and revocation; never callable by public apps or DMs |
 
-## Tasks, in order
+The internal provisioning boundary is implemented but has not been exercised against a real provider allocation. Shared Spectrum metadata does not identify the bot destination. Follow `docs/22-ios-app-contracts.md` when live work resumes; do not invent a universal number, use the participant's sender/space ID, or reuse another invitee's assigned route.
 
-1. **Finish auth verification (D; partially available now).** Verify sign-out immediately clears protected screens and local credentials, and signing back in works. Once backend auth is configured, verify refresh, session expiry and return to the auth gate. Failures must show an actionable error and never silently enter demo mode.
+## Local validation for future edits
 
-2. **Run on the physical iPhone (D; available now with the user's device/account).** Configure signing locally, pair/trust the iPhone 16 Pro, follow device preparation prompts and run Rally. Check login, navigation, layout and Contacts. Keep team-specific settings local. Record the actual provisioning expiry; do not promise a ten-day lifetime or require TestFlight for the chosen installation path.
+SDK pins are Convex Swift **0.8.1**, Convex Auth0 **0.4.0**, Auth0.swift **2.17.0**; Swift 6, minimum iOS 17. Verify installed public interfaces when changing adapters. Keep UI state on the main actor and preserve background SDK auth/late-login/logout regressions.
 
-3. **Complete small required UI gaps (D; mostly available now).** Add the event-type selector using canonical `event` / `project` values. Add the event-list progress summary when authorized read models provide enough data; request a contract addition if needed. Never infer commitment counts from event status or connectivity.
+Run tests appropriate to changed behavior, then the combined gate when changing shared contracts:
 
-4. **Verify actual contact selection (D; available now).** Exercise selection of a specific phone property from a multi-number contact, review/edit, removal and invalid-number rejection. Require an explicit country code rather than guessing. Verify only the final selected name/number reaches the invitation payload, without full-address-book access. Preserve cancellation/reopening behavior and the current one-person-per-submission flow until result-to-recipient correlation supports more. Use fictional test contacts and sanitized evidence.
+```sh
+npm run check
+cd ios/Rally
+./scripts/test-simulator.sh YOUR_AVAILABLE_IOS_SIMULATOR_UDID
+```
 
-5. **Finish accessibility verification (D; available now).** Check VoiceOver labels/focus and large Dynamic Type across event creation, task creation, contact review, invitation results and event detail. Check empty/loading/error layouts and that confirmed/proposed distinctions remain understandable without color. Existing large-text evidence covers welcome/phone-link screens, not every screen.
+The wrapper is the documented fallback for this machine's Xcode scheme destination issue. UI tests use `--rally-local-tests` to disable ignored live configuration. Unit suites include Core/Live, Adapter, Session, PhoneLink, EventSetup, MockIntegration, ContactReview, AppStatus and StatusPresentation. UI coverage includes setup/confirmation, phone proof, approval vs commitment, contact review/picker cancellation, large text and disabled demo routing/activity. New backend tests cover account/error boundaries and status/routing authorization, redaction, TTL and revocation.
 
-6. **Integrate backend identity (B dependency; D consumes it).** Lane B must deploy the matching Auth0 provider configuration, resolve signed identities to Rally users and define first-login provisioning. Verify backend token acceptance before counting authentication complete. Login must not grant organizer role, prove a phone number or enroll a messaging participant. Never send client-supplied user IDs or roles as authorization.
+Regenerate the project when file membership changes, preserving intentional project metadata, Info.plist and the pinned SwiftPM lockfile. Keep simulator/build artifacts ignored. Do not repeat passing unrelated suites without new changes, failures or concerns.
 
-7. **Verify live queries and mutations (B dependency; D tests the app).** Load authorized event lists/details, create an event and open task, and prove persistence across app restart. Verify organizer/member controls reflect backend permissions. Exercise the real subscription path; the adapter already exists, so do not replace the app with a second implementation.
+## Deferred live/device acceptance — run later
 
-8. **Implement phone linking (A dependency; D implements the UI).** Consume an authenticated challenge/status contract that supplies a real short-lived code, expiry and actual assigned Rally routing instructions. Show the `JOIN <code>` handoff and observe verified inbound completion. Handle pending, linked, expired and retry states. Never mark linked from an app-entered number or assume a universal shared Rally number.
+1. Deploy the additive backend contracts to the intended development deployment. Verify real Auth0 token acceptance, registration, refresh, sign-out/relogin and permission rejection. A previously reported simulator login is not this evidence.
+2. Complete actual signed phone proof, create/confirm a real event with timed tasks, and have organizer/participants redeem their own event JOIN. Follow the authenticated M1 runbook; simulation seeds cannot establish real consent.
+3. Verify each participant's actual assigned Rally destination, provisioning/rotation/expiry/revocation, and user-initiated Messages opening. Validate shared-line allocation through an authoritative provider channel before recording it.
+4. Verify persistence across restart, authorized subscriptions, invitation redemption and permission removal. Match a real participant's iMessage YES to app committed state and sanitized M1 IDs/versions (**ST-15**). Exercise NO, cancellation, STOP/PAUSE/LEAVE and delivery receipts without optimistic confirmation.
+5. Install directly from Xcode onto the user's iPhone 16 Pro / iOS 27.0.1. Verify pairing/signing, actual provisioning expiry, login, Contacts, navigation and accessibility. Team settings stay local; simulator results do not prove device installation.
+6. Run M2 natural-language coordination after Lane C and the real M1 gate are ready. Save sanitized trace/screen recording without tokens, real phone numbers or unrelated event data.
 
-9. **Complete live invitations (A/B dependencies; D implements the flow).** Submit reviewed contacts to `invitations.createForContacts`, correlate the result to the selected person, and show expiry and actual handoff instructions. Keep the status “Waiting for them to text Rally” until verified redemption/enrollment appears in authorized state. The app must not send invitations automatically or enroll someone merely because they were selected. Handle failed/expired invitations without creating duplicates.
+Weather, widgets, project mode and extra integrations remain outside this continuation. Follow P0/P1/P2 cuts and the feature freeze.
 
-10. **Complete activity and iMessage navigation (backend contract dependency).** Add a short event-scoped, redacted activity timeline with actual timestamps and an iMessage shortcut using verified routing information. Preserve truthful unavailable states until those contracts exist. Do not derive delivery receipts, worker health or activity history from WebSocket/task status.
+## Completion and report
 
-11. **Verify live failure and permission paths (A/B dependencies).** Test disconnect/reconnect, stale data, failed or stalled initial loads, retry, duplicate submissions, mutation version conflicts, session expiry and membership removal. Another user's event must never appear or leak through detail access. Query permission failures must clear protected data. Ask before overwriting competing changes; do not retry a consequential mutation with a new idempotency key blindly.
+The Lane D local implementation is complete when its code and meaningful local checks pass; read/error contracts are now implemented, not a future handoff. **T6/M2/ST-15 complete only with their actual live/device evidence.**
 
-12. **Run the real-device acceptance scenario (A/B/C integration).** Sign in → see authorized seeded Charity 5K → create a test event → select/review a contact → show the waiting-to-join state → observe setup become confirmed after Jordan's actual iMessage `YES`. Compare the event/task versions and active assignee with the sanitized iMessage trace for **ST-15**. Capture a screen recording with private details redacted, the relevant test output and a clearly identified real-provider trace. Simulated acceptance does not close this gate.
-
-13. **Commit and hand off (D).** Run checks appropriate to the final changes, review the diff and commit the lane's changes on `lane/d-ios`. Do not stage unrelated lane work, build artifacts or local configuration. Update the app README and continuation prompt with commands, results and remaining blockers. Close T6/M2/ST-15 only when their actual acceptance evidence exists; merge according to the team's checkpoint process.
-
-## Optional work and cut order
-
-- **Weather-sensitive creation controls:** only when the backend weather capability is ready and the required app/messaging path is passing. Weather remains a signal requiring the appropriate approvals.
-- **Widget (P2):** defer until the required milestones are green and the team schedule permits it. One card: next event, date/time, confirmed vs outstanding commitment counts and a deep link into the app. Widget updates are system-budgeted; make no immediate-update claim.
-- Respect `prompts/m3-freeze.md`: no new features after feature freeze. A passed checkpoint is not a reason to introduce widget work after the freeze; cut unfinished optional work first.
-
-## Tests you must make pass
-
-- Keep the existing unit/UI coverage green when affected by a change. Add meaningful regressions for new behavior or defects, not tests that merely repeat implementation.
-- T6: selected contacts only; pending vs confirmed distinction; denied access to unrelated events. Mock authorization tests must be supplemented with real backend evidence.
-- Auth: sign-out/relogin, refresh/expiry and failed-login behavior without a silent demo fallback.
-- Real-device contact/invitation and verified phone-link paths, including expiry and retries.
-- ST-15: confirmed app state agrees with the actual iMessage trace.
-- Review captured logs, screenshots and recordings for secrets, raw phone numbers and unrelated event data.
-
-## Done when
-
-The real-device T6/M2 scenario and ST-15 pass with actual provider traffic, authorized backend data and the correct consenting participants. Relevant app tests/checks pass, evidence is recorded, and unavailable optional features are honestly labeled or cut. Simulator sign-in or fixture acceptance alone does not satisfy this milestone.
-
-## Report
-
-**Goal / Changed files / Acceptance evidence / Risks and open questions.** Include the auth and device verification status, A/B contract dependencies, what was actually tested live, and any explicitly simulated evidence.
+Report **Goal / Changed files / Acceptance evidence / Risks and open questions**. Separate tested local behavior from deferred deployment/provider/device checks. Never label a simulation as live evidence.

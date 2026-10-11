@@ -1,3 +1,4 @@
+import { withPublicErrors } from "./lib/publicErrors";
 import { v } from "convex/values";
 import type { Infer } from "convex/values";
 import { internalMutation, mutation } from "./_generated/server";
@@ -23,7 +24,7 @@ export const createForContacts = mutation({
     idempotencyKey: v.string(),
   },
   returns: v.array(createdInvitation),
-  handler: async (ctx, args): Promise<Infer<typeof createdInvitation>[]> => {
+  handler: async (ctx, args): Promise<Infer<typeof createdInvitation>[]> => withPublicErrors(ctx, async () => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("UNAUTHORIZED");
     const user = await ctx.db.query("users").withIndex("by_auth_subject", (q) => q.eq("authSubject", identity.subject)).unique();
@@ -65,7 +66,7 @@ export const createForContacts = mutation({
       results.push({ invitationId, contactSelectionId, code, expiresAt });
     }
     return results;
-  },
+  }),
 });
 
 const redeemedInvitation = v.union(

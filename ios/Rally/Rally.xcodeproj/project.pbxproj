@@ -7,27 +7,40 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		004BD6F4A2B5A733225E1C84 /* PhoneLinkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 333648259D8920FC3BACE094 /* PhoneLinkTests.swift */; };
 		0ABB0D2C3BAAA5154F41A935 /* TaskCreateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54150B6EA1B1E8E258F8474D /* TaskCreateView.swift */; };
 		11509BF8D03093B0A6300FE9 /* NativeContactPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F63CADD5EE91C402B2B6508D /* NativeContactPicker.swift */; };
 		134D1AF6D7DE6DD11A2A222C /* RallyUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D70E7A6BB280652DBF0DD3FD /* RallyUITests.swift */; };
 		14BA9ECFB535E970415C6966 /* EventCreateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ABAF01CED65E9333B98B02D /* EventCreateView.swift */; };
 		1CBC4E3DE65F05B61E31A19A /* MockRallyClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB50B45C73CD161DC1325992 /* MockRallyClient.swift */; };
+		1FAFA69BD2F2C7773D12F2E0 /* AppStatusModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C26F01DDE04D64E6F5AB0A2 /* AppStatusModels.swift */; };
 		21D1C1E4C4A818685DF5D4CD /* EventListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD9B775A121F6B679CB4D9A6 /* EventListView.swift */; };
 		3394CB587A9D881318F43394 /* Auth0 in Frameworks */ = {isa = PBXBuildFile; productRef = ECE6F0408A02B8DCAC01379F /* Auth0 */; };
 		3E5F0A62CEF54927F7FE222B /* OnboardingAndLinkPhoneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9084FF5440A28B24F44756BD /* OnboardingAndLinkPhoneView.swift */; };
 		494B00F047AE2F45554BC716 /* EventDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A43390EFC4EE099B3B65B265 /* EventDetailView.swift */; };
+		4954C4DD9845EDA570F5B835 /* AppStatusViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = C29E3371AC770A2563FB8A23 /* AppStatusViews.swift */; };
+		570163A5A36019E318D08E82 /* AppStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67FFC3A9C3E743FB39BE8B53 /* AppStatusTests.swift */; };
 		5A462D75C49D801C623CECDD /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C1D314B9628AA36942706E7 /* Models.swift */; };
 		5C9CC5A2750E345EAD4EC5AA /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37090DD994A1BD3BEBEC5ADE /* Components.swift */; };
 		5F331D72D2943B3CAA10B5F5 /* ConvexMobile in Frameworks */ = {isa = PBXBuildFile; productRef = CAB89A18C32556E7EC77979E /* ConvexMobile */; };
 		61733BB2E10812A78D236DC6 /* CoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03240BB74CFF37F029A26D9F /* CoreTests.swift */; };
+		6F401B8805DBE0A3F6AEC9A0 /* PhoneLinkModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A6D2AE2EF163C76153956AB /* PhoneLinkModel.swift */; };
 		7212985CDAF0C3C98365B2AE /* ContactReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 589B456996A59773D305F873 /* ContactReviewView.swift */; };
+		73A6C444D683A2A28A65497F /* SessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05682E19F1E33750ED53F77D /* SessionTests.swift */; };
 		7EDE2F021C5486D83270D3CB /* LiveConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A81A3469DE8D62CD39FC2F6 /* LiveConfiguration.swift */; };
+		7F6DF65E70FEF1A8F1677343 /* EventSetupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 199A5CDB9B65AF9E1EF19E47 /* EventSetupTests.swift */; };
 		A73D6956151DC453962397A3 /* RallyClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C05F3C2B84E81ECFDDC9FFFB /* RallyClient.swift */; };
+		B0A11BFFA77F54E0F5457F7C /* AdapterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FDD8C0C388DEED675FC588D /* AdapterTests.swift */; };
 		B7DC32C349F1A053A5CE10A3 /* AppSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7578C097EE9AC0DFD37E50AF /* AppSession.swift */; };
 		B7FDE81E7A5773AEBE4BBEB8 /* RallyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F4EC8B27D9AED83A815AAF /* RallyApp.swift */; };
+		BEF490D8E6BFE6639BB7D94C /* IntegrationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95DF0651CC6DCDFBAB30F123 /* IntegrationModels.swift */; };
+		C5CCEA3546657F7B6147C726 /* StatusPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17727EEF9A2D5819C8CB259D /* StatusPresentationTests.swift */; };
+		CC87136968FEB9BC5ABDA646 /* EventSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5004E7331260A9024491B5A2 /* EventSetup.swift */; };
 		CD96BE216B0D660DB36642CD /* ConvexRallyClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C64EFCE7D6230E311C3197D8 /* ConvexRallyClient.swift */; };
 		DF27BF5487D77B529F90270D /* ConvexAuth0 in Frameworks */ = {isa = PBXBuildFile; productRef = BC88A44D13E3185D5E58633D /* ConvexAuth0 */; };
 		F0ADA444EC4207F0794356A1 /* LiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08DF04A86C239CFE6346C4E1 /* LiveTests.swift */; };
+		F1D124C6A8179AD2A697F15C /* MockIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6C75765DE6E47D8370667D1 /* MockIntegrationTests.swift */; };
+		F2E04D9045432A23C95E5433 /* ContactReviewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BB536E0CEE62981B80C037E /* ContactReviewTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -49,24 +62,37 @@
 
 /* Begin PBXFileReference section */
 		03240BB74CFF37F029A26D9F /* CoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreTests.swift; sourceTree = "<group>"; };
+		05682E19F1E33750ED53F77D /* SessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTests.swift; sourceTree = "<group>"; };
 		08DF04A86C239CFE6346C4E1 /* LiveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveTests.swift; sourceTree = "<group>"; };
+		17727EEF9A2D5819C8CB259D /* StatusPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusPresentationTests.swift; sourceTree = "<group>"; };
 		1992FEDC1F9125FC367F6B42 /* Rally.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Rally.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		199A5CDB9B65AF9E1EF19E47 /* EventSetupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventSetupTests.swift; sourceTree = "<group>"; };
 		1ABAF01CED65E9333B98B02D /* EventCreateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventCreateView.swift; sourceTree = "<group>"; };
+		1BB536E0CEE62981B80C037E /* ContactReviewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactReviewTests.swift; sourceTree = "<group>"; };
 		2C1D314B9628AA36942706E7 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		333648259D8920FC3BACE094 /* PhoneLinkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneLinkTests.swift; sourceTree = "<group>"; };
 		37090DD994A1BD3BEBEC5ADE /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
 		40B0871EDA7A77A022C07DD7 /* RallyUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = RallyUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		446B15BB8FE53901E8CCAC3D /* RallyTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = RallyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		5004E7331260A9024491B5A2 /* EventSetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventSetup.swift; sourceTree = "<group>"; };
 		54150B6EA1B1E8E258F8474D /* TaskCreateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskCreateView.swift; sourceTree = "<group>"; };
 		589B456996A59773D305F873 /* ContactReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactReviewView.swift; sourceTree = "<group>"; };
 		5A81A3469DE8D62CD39FC2F6 /* LiveConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveConfiguration.swift; sourceTree = "<group>"; };
+		67FFC3A9C3E743FB39BE8B53 /* AppStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStatusTests.swift; sourceTree = "<group>"; };
 		74F4EC8B27D9AED83A815AAF /* RallyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RallyApp.swift; sourceTree = "<group>"; };
 		7578C097EE9AC0DFD37E50AF /* AppSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSession.swift; sourceTree = "<group>"; };
+		8FDD8C0C388DEED675FC588D /* AdapterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdapterTests.swift; sourceTree = "<group>"; };
 		9084FF5440A28B24F44756BD /* OnboardingAndLinkPhoneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingAndLinkPhoneView.swift; sourceTree = "<group>"; };
+		95DF0651CC6DCDFBAB30F123 /* IntegrationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationModels.swift; sourceTree = "<group>"; };
+		9A6D2AE2EF163C76153956AB /* PhoneLinkModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneLinkModel.swift; sourceTree = "<group>"; };
+		9C26F01DDE04D64E6F5AB0A2 /* AppStatusModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStatusModels.swift; sourceTree = "<group>"; };
 		A43390EFC4EE099B3B65B265 /* EventDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventDetailView.swift; sourceTree = "<group>"; };
 		B5B4EF080D281692E2DC2925 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
+		B6C75765DE6E47D8370667D1 /* MockIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockIntegrationTests.swift; sourceTree = "<group>"; };
 		BB50B45C73CD161DC1325992 /* MockRallyClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockRallyClient.swift; sourceTree = "<group>"; };
 		BD9B775A121F6B679CB4D9A6 /* EventListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventListView.swift; sourceTree = "<group>"; };
 		C05F3C2B84E81ECFDDC9FFFB /* RallyClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RallyClient.swift; sourceTree = "<group>"; };
+		C29E3371AC770A2563FB8A23 /* AppStatusViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStatusViews.swift; sourceTree = "<group>"; };
 		C64EFCE7D6230E311C3197D8 /* ConvexRallyClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConvexRallyClient.swift; sourceTree = "<group>"; };
 		D70E7A6BB280652DBF0DD3FD /* RallyUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RallyUITests.swift; sourceTree = "<group>"; };
 		F63CADD5EE91C402B2B6508D /* NativeContactPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeContactPicker.swift; sourceTree = "<group>"; };
@@ -92,6 +118,7 @@
 				7578C097EE9AC0DFD37E50AF /* AppSession.swift */,
 				C64EFCE7D6230E311C3197D8 /* ConvexRallyClient.swift */,
 				5A81A3469DE8D62CD39FC2F6 /* LiveConfiguration.swift */,
+				9A6D2AE2EF163C76153956AB /* PhoneLinkModel.swift */,
 			);
 			path = Live;
 			sourceTree = "<group>";
@@ -129,8 +156,16 @@
 		46315989A6CEA38CFC08FF3A /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				8FDD8C0C388DEED675FC588D /* AdapterTests.swift */,
+				67FFC3A9C3E743FB39BE8B53 /* AppStatusTests.swift */,
+				1BB536E0CEE62981B80C037E /* ContactReviewTests.swift */,
 				03240BB74CFF37F029A26D9F /* CoreTests.swift */,
+				199A5CDB9B65AF9E1EF19E47 /* EventSetupTests.swift */,
 				08DF04A86C239CFE6346C4E1 /* LiveTests.swift */,
+				B6C75765DE6E47D8370667D1 /* MockIntegrationTests.swift */,
+				333648259D8920FC3BACE094 /* PhoneLinkTests.swift */,
+				05682E19F1E33750ED53F77D /* SessionTests.swift */,
+				17727EEF9A2D5819C8CB259D /* StatusPresentationTests.swift */,
 			);
 			path = Tests;
 			sourceTree = "<group>";
@@ -138,6 +173,9 @@
 		4A70C0940886876C89955770 /* Core */ = {
 			isa = PBXGroup;
 			children = (
+				9C26F01DDE04D64E6F5AB0A2 /* AppStatusModels.swift */,
+				5004E7331260A9024491B5A2 /* EventSetup.swift */,
+				95DF0651CC6DCDFBAB30F123 /* IntegrationModels.swift */,
 				BB50B45C73CD161DC1325992 /* MockRallyClient.swift */,
 				2C1D314B9628AA36942706E7 /* Models.swift */,
 				C05F3C2B84E81ECFDDC9FFFB /* RallyClient.swift */,
@@ -174,6 +212,7 @@
 		B9268CCE96F05E8E9A25F28C /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				C29E3371AC770A2563FB8A23 /* AppStatusViews.swift */,
 				37090DD994A1BD3BEBEC5ADE /* Components.swift */,
 				589B456996A59773D305F873 /* ContactReviewView.swift */,
 				1ABAF01CED65E9333B98B02D /* EventCreateView.swift */,
@@ -314,8 +353,16 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B0A11BFFA77F54E0F5457F7C /* AdapterTests.swift in Sources */,
+				570163A5A36019E318D08E82 /* AppStatusTests.swift in Sources */,
+				F2E04D9045432A23C95E5433 /* ContactReviewTests.swift in Sources */,
 				61733BB2E10812A78D236DC6 /* CoreTests.swift in Sources */,
+				7F6DF65E70FEF1A8F1677343 /* EventSetupTests.swift in Sources */,
 				F0ADA444EC4207F0794356A1 /* LiveTests.swift in Sources */,
+				F1D124C6A8179AD2A697F15C /* MockIntegrationTests.swift in Sources */,
+				004BD6F4A2B5A733225E1C84 /* PhoneLinkTests.swift in Sources */,
+				73A6C444D683A2A28A65497F /* SessionTests.swift in Sources */,
+				C5CCEA3546657F7B6147C726 /* StatusPresentationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -324,17 +371,22 @@
 			buildActionMask = 2147483647;
 			files = (
 				B7DC32C349F1A053A5CE10A3 /* AppSession.swift in Sources */,
+				1FAFA69BD2F2C7773D12F2E0 /* AppStatusModels.swift in Sources */,
+				4954C4DD9845EDA570F5B835 /* AppStatusViews.swift in Sources */,
 				5C9CC5A2750E345EAD4EC5AA /* Components.swift in Sources */,
 				7212985CDAF0C3C98365B2AE /* ContactReviewView.swift in Sources */,
 				CD96BE216B0D660DB36642CD /* ConvexRallyClient.swift in Sources */,
 				14BA9ECFB535E970415C6966 /* EventCreateView.swift in Sources */,
 				494B00F047AE2F45554BC716 /* EventDetailView.swift in Sources */,
 				21D1C1E4C4A818685DF5D4CD /* EventListView.swift in Sources */,
+				CC87136968FEB9BC5ABDA646 /* EventSetup.swift in Sources */,
+				BEF490D8E6BFE6639BB7D94C /* IntegrationModels.swift in Sources */,
 				7EDE2F021C5486D83270D3CB /* LiveConfiguration.swift in Sources */,
 				1CBC4E3DE65F05B61E31A19A /* MockRallyClient.swift in Sources */,
 				5A462D75C49D801C623CECDD /* Models.swift in Sources */,
 				11509BF8D03093B0A6300FE9 /* NativeContactPicker.swift in Sources */,
 				3E5F0A62CEF54927F7FE222B /* OnboardingAndLinkPhoneView.swift in Sources */,
+				6F401B8805DBE0A3F6AEC9A0 /* PhoneLinkModel.swift in Sources */,
 				B7FDE81E7A5773AEBE4BBEB8 /* RallyApp.swift in Sources */,
 				A73D6956151DC453962397A3 /* RallyClient.swift in Sources */,
 				0ABB0D2C3BAAA5154F41A935 /* TaskCreateView.swift in Sources */,

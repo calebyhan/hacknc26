@@ -24,6 +24,7 @@
 | `19-messaging-evidence.md` | Lane A local evidence, SDK differences, cloud setup and live-test blockers | Configuring or reviewing messaging |
 | `20-domain-evidence.md` | Lane B acceptance evidence, Auth0/phone setup, additive contracts and M1 handoff | Reviewing domain behavior or preparing real event enrollment |
 | `21-messaging-domain-integration.md` | Signed full-pipeline A+B simulation tests, cancellation/routing fixes and verification | Reviewing messaging/domain integration |
+| `22-ios-app-contracts.md` | Implemented account/status/errors, private routing provisioning, local acceptance boundary | Reviewing the completed D integration or preparing live app acceptance |
 | `../prompts/` | Kickoff prompts per lane and checkpoint | Starting a lane or checkpoint session |
 
 ## How to use

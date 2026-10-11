@@ -9,6 +9,7 @@
  */
 
 import type * as accounts from "../accounts.js";
+import type * as appStatus from "../appStatus.js";
 import type * as commands from "../commands.js";
 import type * as commitments from "../commitments.js";
 import type * as context from "../context.js";
@@ -19,6 +20,7 @@ import type * as http from "../http.js";
 import type * as identity from "../identity.js";
 import type * as inbound from "../inbound.js";
 import type * as invitations from "../invitations.js";
+import type * as lib_appStatus from "../lib/appStatus.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_commitmentEngine from "../lib/commitmentEngine.js";
 import type * as lib_decisionEngine from "../lib/decisionEngine.js";
@@ -26,6 +28,7 @@ import type * as lib_domain from "../lib/domain.js";
 import type * as lib_messaging from "../lib/messaging.js";
 import type * as lib_messagingDelivery from "../lib/messagingDelivery.js";
 import type * as lib_proposalEngine from "../lib/proposalEngine.js";
+import type * as lib_publicErrors from "../lib/publicErrors.js";
 import type * as lib_validators from "../lib/validators.js";
 import type * as outbox from "../outbox.js";
 import type * as proposals from "../proposals.js";
@@ -44,6 +47,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   accounts: typeof accounts;
+  appStatus: typeof appStatus;
   commands: typeof commands;
   commitments: typeof commitments;
   context: typeof context;
@@ -54,6 +58,7 @@ declare const fullApi: ApiFromModules<{
   identity: typeof identity;
   inbound: typeof inbound;
   invitations: typeof invitations;
+  "lib/appStatus": typeof lib_appStatus;
   "lib/auth": typeof lib_auth;
   "lib/commitmentEngine": typeof lib_commitmentEngine;
   "lib/decisionEngine": typeof lib_decisionEngine;
@@ -61,6 +66,7 @@ declare const fullApi: ApiFromModules<{
   "lib/messaging": typeof lib_messaging;
   "lib/messagingDelivery": typeof lib_messagingDelivery;
   "lib/proposalEngine": typeof lib_proposalEngine;
+  "lib/publicErrors": typeof lib_publicErrors;
   "lib/validators": typeof lib_validators;
   outbox: typeof outbox;
   proposals: typeof proposals;

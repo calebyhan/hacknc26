@@ -6,8 +6,14 @@ const modules = import.meta.glob<Record<string, unknown>>(
 );
 const expected = [
   ["accounts.register", "public mutation"],
+  ["accounts.current", "public query"],
   ["accounts.beginPhoneLink", "public mutation"],
   ["accounts.completePhoneLink", "public mutation"],
+  ["appStatus.event", "public query"],
+  ["appStatus.overview", "public query"],
+  ["appStatus.route", "public query"],
+  ["appStatus.recordProvisionedRoute", "internal mutation"],
+  ["appStatus.revokeProvisionedRoute", "internal mutation"],
   ["commands.route", "internal mutation"],
   ["commitments.reportUnavailable", "internal mutation"],
   ["context.buildPacket", "internal query"],

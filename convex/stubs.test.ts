@@ -11,13 +11,13 @@ describe("Convex bootstrap stubs (in-memory simulation)", () => {
   it("rejects public reads and writes for anonymous and authenticated callers", async () => {
     const t = convexTest(schema, modules);
     const authenticated = t.withIdentity({ subject: "fixture-subject" });
-    for (const caller of [t, authenticated]) {
+    for (const [caller, code] of [[t, "AUTHENTICATION_REQUIRED"], [authenticated, "ACCESS_DENIED"]] as const) {
       await expect(caller.query(api.events.myEvents, {}))
-        .rejects.toThrow("UNAUTHORIZED");
+        .rejects.toMatchObject({ data: { version: 1, code } });
       await expect(caller.mutation(api.events.create, {
         title: "Fixture only", kind: "event", startsAt: 1_792_246_800_000,
         timezone: "America/New_York", idempotencyKey: "fixture-create",
-      })).rejects.toThrow("UNAUTHORIZED");
+      })).rejects.toMatchObject({ data: { version: 1, code } });
     }
     expect(await t.run(async (ctx) => ctx.db.query("events").collect())).toEqual([]);
     expect(await t.run(async (ctx) => ctx.db.query("users").collect())).toEqual([]);

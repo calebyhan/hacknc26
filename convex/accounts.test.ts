@@ -19,7 +19,7 @@ async function inbound(t: ReturnType<typeof setup>["t"], text: string, phone = "
 describe("app identity and actual phone proof (simulation)", () => {
   it("requires identity and registers once without granting any event or phone access", async () => {
     const { t, app } = setup();
-    await expect(t.mutation(api.accounts.register, { displayName: "Alex" })).rejects.toThrow("UNAUTHORIZED");
+    await expect(t.mutation(api.accounts.register, { displayName: "Alex" })).rejects.toMatchObject({ data: { version: 1, code: "AUTHENTICATION_REQUIRED" } });
     const userId = await app.mutation(api.accounts.register, { displayName: "Alex" });
     expect(await app.mutation(api.accounts.register, { displayName: "Alex" })).toBe(userId);
     expect((await t.run(ctx => ctx.db.get(userId)))?.verifiedPhoneE164).toBeUndefined();
@@ -29,9 +29,9 @@ describe("app identity and actual phone proof (simulation)", () => {
     const { t, app } = setup(); await app.mutation(api.accounts.register, { displayName: "Alex" });
     const challenge = await app.mutation(api.accounts.beginPhoneLink, { phoneE164: "+15550000001", idempotencyKey: "phone-link" });
     expect(await app.mutation(api.accounts.beginPhoneLink, { phoneE164: "+15550000001", idempotencyKey: "phone-link" })).toEqual(challenge);
-    await expect(app.mutation(api.accounts.completePhoneLink, { invitationId: challenge.invitationId })).rejects.toThrow("PHONE_PROOF_REQUIRED");
+    await expect(app.mutation(api.accounts.completePhoneLink, { invitationId: challenge.invitationId })).rejects.toMatchObject({ data: { version: 1, code: "PHONE_PROOF_REQUIRED" } });
     await inbound(t, `JOIN ${challenge.code}`, "+15550000002");
-    await expect(app.mutation(api.accounts.completePhoneLink, { invitationId: challenge.invitationId })).rejects.toThrow("PHONE_PROOF_REQUIRED");
+    await expect(app.mutation(api.accounts.completePhoneLink, { invitationId: challenge.invitationId })).rejects.toMatchObject({ data: { version: 1, code: "PHONE_PROOF_REQUIRED" } });
     expect(await t.run(ctx => ctx.db.query("outboundMessages").collect())).toEqual([]);
   });
   it("links an existing HELP identity only after that phone sends the exact private challenge", async () => {
@@ -52,15 +52,15 @@ describe("app identity and actual phone proof (simulation)", () => {
     await app.mutation(api.accounts.register, { displayName: "Alex" });
     const challenge = await app.mutation(api.accounts.beginPhoneLink, { phoneE164: "+15550000001", idempotencyKey: "conflict" });
     await inbound(t, `JOIN ${challenge.code}`);
-    await expect(app.mutation(api.accounts.completePhoneLink, { invitationId: challenge.invitationId })).rejects.toThrow("PHONE_IDENTITY_CONFLICT");
+    await expect(app.mutation(api.accounts.completePhoneLink, { invitationId: challenge.invitationId })).rejects.toMatchObject({ data: { version: 1, code: "PHONE_IDENTITY_CONFLICT" } });
   });
   it("expires challenges and checks the invitation belongs to the authenticated app user", async () => {
     const { t, app } = setup(); await app.mutation(api.accounts.register, { displayName: "Alex" });
     const challenge = await app.mutation(api.accounts.beginPhoneLink, { phoneE164: "+15550000001", idempotencyKey: "expires" });
     const other = t.withIdentity({ subject: "simulation|other" }); await other.mutation(api.accounts.register, { displayName: "Other" });
-    await expect(other.mutation(api.accounts.completePhoneLink, { invitationId: challenge.invitationId })).rejects.toThrow("UNAUTHORIZED");
+    await expect(other.mutation(api.accounts.completePhoneLink, { invitationId: challenge.invitationId })).rejects.toMatchObject({ data: { version: 1, code: "ACCESS_DENIED" } });
     await inbound(t, `JOIN ${challenge.code}`); vi.advanceTimersByTime(600001);
-    await expect(app.mutation(api.accounts.completePhoneLink, { invitationId: challenge.invitationId })).rejects.toThrow("PHONE_CHALLENGE_EXPIRED");
+    await expect(app.mutation(api.accounts.completePhoneLink, { invitationId: challenge.invitationId })).rejects.toMatchObject({ data: { version: 1, code: "PHONE_CHALLENGE_EXPIRED" } });
   });
   it("an organizer's app role is distinct from messaging consent, and its own JOIN safely adds consent", async () => {
     const { t, app } = setup();

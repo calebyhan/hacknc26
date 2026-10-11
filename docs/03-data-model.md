@@ -7,6 +7,7 @@ Use Convex document IDs and indexed queries. Field names below are the **domain 
 | Entity | Required fields | Important indexes |
 |---|---|---|
 | `users` | `displayName`, `verifiedPhoneE164?`, `createdAt`, `authSubject?`, `messagingState`, `messagingStateAt?`, `settings` | `by_auth_subject`, `by_phone` (unique enforced in mutations) |
+| `messagingRoutes` | `participantPhoneE164`, `provisioning?={destination,verifiedAt,expiresAt,providerReference}`, `revokedAt?` | `by_participant_phone` (unique enforced in internal provisioning) |
 | `contactSelections` | `ownerUserId`, `eventId?`, `displayName`, `phoneE164`, `selectedAt`, `invitationId?` | `by_owner`, `by_event` |
 | `invitations` | `purpose:event_invite|app_phone_link`, `eventId?`, `inviterUserId`, `contactSelectionId?`, `targetUserId?`, `codeHash`, `state`, `expiresAt`, `failedAttempts`, `redeemedByPhoneE164?`, `redeemedAt?` | `by_code_hash`, `by_event`, `by_contact_selection` |
 | `events` | `title`, `kind:event|project`, `startsAt`, `timezone`, `location?`, `ownerId`, `status`, `version`, `weatherPolicy?` | `by_owner`, `by_start` |
@@ -15,12 +16,12 @@ Use Convex document IDs and indexed queries. Field names below are the **domain 
 | `commitments` | `eventId`, `taskId`, `participantId`, `state`, `sourceProposalId?`, `sourceMessageId?`, `createdAt`, `endedAt?`, `endedByActorId?` | `by_event`, `by_task`, `by_participant` |
 | `availability` | `eventId`, `userId`, `windowStart`, `windowEnd`, `kind:available|unavailable`, `source:self_reported|organizer_reported`, `reportedByUserId`, `sourceMessageId?`, `recordedAt` | `by_event_user` |
 | `proposals` | `eventId`, `type`, `originatorId`, `subjectId?`, `targetTaskId?`, `targetUserId?`, `taskChangeJson?`, `state`, `requiresOrganizerApproval`, `organizerApprovedAt?`, `eventVersionAtCreation`, `taskVersionAtCreation?`, `expiresAt`, `idempotencyKey` | `by_event`, `by_target`, `by_idempotency` |
-| `inboundMessages` | `provider`, `providerMessageId`, `senderPhone`, `receivedAt`, `contentType`, `bodyRedactedOrEncrypted?`, `eventId?`, `processingState` | `by_provider_message_id`, `by_sender` |
-| `outboundMessages` | `idempotencyKey`, `recipientUserId`, `eventId?`, `proposalId?`, `directReplyToMessageId?`, `content`, `state`, `attemptCount`, `providerMessageId?` | `by_key`, `by_state` |
+| `inboundMessages` | `provider`, `providerMessageId`, `senderPhone`, `receivedAt`, `contentType`, `bodyRedactedOrEncrypted?`, `eventId?`, `processingState` | `by_provider_message_id`, `by_sender`, `by_sender_received_at` |
+| `outboundMessages` | `idempotencyKey`, `recipientUserId`, `eventId?`, `proposalId?`, `directReplyToMessageId?`, `content`, `state`, `attemptCount`, `providerMessageId?` | `by_key`, `by_state`, `by_event_recipient` |
 | `conversationFocus` | `userId`, `lastEventId?`, `lastIntent?`, `updatedAt`, `expiresAt` | `by_user` |
 | `reasoningJobs` | `messageId`, `eventId` (nullable), `contextVersion` (nullable), `taskVersions`, `status`, `leaseOwner?`, `leaseToken?`, `leaseUntil?`, `attempts`, `result?`, `failureCategory?`, `executedDecisionJson?`, `executionResultJson?` | `by_status`, `by_message` |
 | `workerHeartbeats` | `workerId`, `lastHeartbeatAt`, `modelId?`, `lastError?` | `by_worker` |
-| `auditEvents` | `actorType:user|agent|system`, `actorId?`, `eventId`, `action`, `oldStateRef?`, `newStateRef?`, `at`, `sourceId` | `by_event`, `by_time`, `by_source` |
+| `auditEvents` | `actorType:user|agent|system`, `actorId?`, `eventId`, `action`, `oldStateRef?`, `newStateRef?`, `at`, `sourceId` | `by_event`, `by_time`, `by_source`, `by_event_at` |
 | `weatherObservations` | `eventId`, `source`, `retrievedAt`, `forecastFor`, `precipProbability?`, `thresholdCrossed`, `policyVersion` | `by_event_time` |
 
 Minimize persisted selected contact data; ideally store only participants explicitly added to an event, not the entire address book. Phone numbers may require encryption/limited access; keep third-party contact data out of prompts. Encrypted values can't be looked up, so if phone numbers are encrypted at rest, index a keyed hash (HMAC-SHA256 with a server-only `RALLY_PHONE_HASH_KEY`) of the normalized E.164 value for `by_phone`, `by_sender` and invitation matching, and keep the encrypted value for display only.
@@ -89,6 +90,12 @@ The schema and all backend functions are bootstrap scaffolding until the owning 
 - Another event `Hack Night` with Alex as organizer, Jordan as member, and its own `setup` task to test ambiguity.
 - Contact `Taylor` selected for Charity 5K with membership `invited` (never `JOIN`ed), to test zero outbound messages before opt-in.
 
+## App status routing addition (ADR-019)
+
+`messagingRoutes` is private provider-allocation evidence, separate from identity, event consent and delivery. Only trusted internal provisioning can write it. Available routes have strict E.164 destinations and a maximum 24-hour validity; revoke-only rows are tombstones. Expired/revoked records suppress fallback to inbound observations. The public read returns only the verified caller’s available destination/expiry. See [implemented status contracts](22-ios-app-contracts.md) for scope, rotation and local verification.
+
 ## Storage retention
 
 Define a cleanup schedule for expired invitation/phone-link codes, reasoning context snapshots, and old raw message payloads. Exact retention period is a product decision; do not invent user consent or retain the full address book indefinitely.
+
+Route revocation tombstones must not be deleted in a way that revives older inbound routing evidence. Coordinate any future retention cleanup with the route read rules.
