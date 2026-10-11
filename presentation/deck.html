@@ -1,0 +1,886 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rally Demo Deck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Onest:wght@400;500;600&display=swap">
+<style>
+  /* One deliberate theme: the Messages app. Blue is a sent text, grey is a received one,
+     green is a confirmed commitment, amber is waiting on a person, violet is Claude. */
+  :root {
+    --paper: #edf0f5;
+    --card: #ffffff;
+    --ink: #17202b;
+    --muted: #677285;
+    --line: #d2d8e1;
+    --blue: #1e7cf2;
+    --bubble: #e1e5eb;
+    --green: #1f9d55;
+    --amber: #e0921b;
+    --red: #dc4437;
+    --violet: #7558f0;
+    --display: "Bricolage Grotesque", "Avenir Next", "Helvetica Neue", sans-serif;
+    --body: "Onest", "Helvetica Neue", Arial, sans-serif;
+    color-scheme: light;
+  }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink); font-family: var(--body);
+    display: grid; place-items: center; min-height: 100vh; overflow: hidden;
+  }
+  #stage {
+    position: relative; width: min(100vw, calc(100vh * 16 / 9)); aspect-ratio: 16 / 9;
+    container-type: inline-size; background: var(--paper); cursor: pointer; user-select: none;
+  }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+  h1#headline {
+    position: absolute; left: 4cqw; top: 3.4cqw; right: 20cqw; margin: 0;
+    font-family: var(--display); font-weight: 800; font-size: 3.4cqw; line-height: 1; letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+  #caption {
+    position: absolute; left: 4cqw; top: 46cqw; width: 58cqw; margin: 0;
+    font-size: 1.3cqw; line-height: 1.5; color: var(--ink); text-wrap: pretty;
+  }
+  #caption .muted { color: var(--muted); }
+  .fade-in { animation: fadein 420ms ease-out both; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(0.3cqw); } to { opacity: 1; transform: none; } }
+
+  .card-title { position: absolute; left: 4cqw; top: 15cqw; display: grid; gap: 1.6cqw; pointer-events: none; }
+  .card-title .mark {
+    margin: 0; font-family: var(--display); font-weight: 800; font-size: 13cqw; line-height: 0.85; letter-spacing: -0.045em;
+  }
+  .card-title p { margin: 0; font-size: 1.9cqw; line-height: 1.3; max-width: 40cqw; text-wrap: balance; }
+  .card-title .meta { font-size: 1.05cqw; color: var(--muted); }
+
+  #faillog { position: absolute; left: 4cqw; right: 4cqw; top: 9.5cqw; }
+  #faillog table { width: 100%; border-collapse: collapse; }
+  #faillog th {
+    text-align: left; font-weight: 500; color: var(--muted); font-size: 0.95cqw; padding: 0 2cqw 0.8cqw 0;
+    border-bottom: 1px solid var(--line);
+  }
+  #faillog td { vertical-align: top; padding: 1.25cqw 2cqw 1.25cqw 0; border-bottom: 1px solid var(--line); font-size: 1.3cqw; line-height: 1.4; }
+  #faillog td.what { font-family: var(--display); font-weight: 600; font-size: 1.65cqw; line-height: 1.15; width: 34cqw; }
+  #stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3cqw; margin-top: 2.6cqw; }
+  #stats div { display: grid; gap: 0.4cqw; align-content: start; }
+  #stats b { font-family: var(--display); font-weight: 800; font-size: 4cqw; line-height: 1; letter-spacing: -0.02em; }
+  #stats span { font-size: 1.05cqw; line-height: 1.4; color: var(--muted); }
+
+  footer {
+    position: absolute; left: 4cqw; right: 4cqw; bottom: 1.6cqw; display: flex; align-items: center; gap: 2cqw;
+    font-size: 0.8cqw; color: var(--muted);
+  }
+  .progress { display: flex; gap: 1.8cqw; flex: 1; }
+  .scene { display: grid; gap: 0.4cqw; }
+  .scene.on .label { color: var(--ink); }
+  .ticks { display: flex; gap: 0.3cqw; }
+  .tick { width: 1.8cqw; height: 0.3cqw; background: var(--line); border-radius: 1cqw; }
+  .tick.done { background: var(--muted); }
+  .tick.now { background: var(--blue); }
+  .controls { display: flex; gap: 0.5cqw; }
+  button {
+    font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--line);
+    border-radius: 2cqw; padding: 0.4cqw 0.9cqw; cursor: pointer;
+  }
+  button:hover { border-color: var(--muted); }
+  button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .overlay { visibility: hidden; opacity: 0; }
+</style>
+</head>
+<body>
+<div id="stage" aria-label="Rally presentation">
+  <canvas id="cv"></canvas>
+
+  <h1 id="headline"></h1>
+
+  <div class="card-title" id="title-card">
+    <h2 class="mark">Rally</h2>
+    <p>One shared plan for your event, kept in the iMessage threads you already use.</p>
+    <span class="meta">HackNC 2026. Built on iMessage with Photon, Convex and Claude.</span>
+  </div>
+
+  <div class="card-title overlay" id="close-card">
+    <h2 class="mark">Rally</h2>
+    <p>Remembers who agreed to what, and asks before changing it.</p>
+  </div>
+
+  <p id="caption"></p>
+
+  <section class="overlay" id="faillog" aria-label="What broke and what we changed">
+    <table>
+      <thead><tr><th>What broke in a real-phone run</th><th>What we changed</th></tr></thead>
+      <tbody id="fail-rows"></tbody>
+    </table>
+    <div id="stats">
+      <div><b>488</b><span>automated tests passing</span></div>
+      <div><b>24 of 25</b><span>Claude evaluation cases on synthetic inputs, 4.2 s median</span></div>
+      <div><b>0</b><span>duplicate assignments in our last real-phone run: 49 messages in, 66 out</span></div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="progress" id="progress"></div>
+    <div class="controls">
+      <button type="button" id="prev" aria-label="Previous step">←</button>
+      <button type="button" id="next" aria-label="Next step">→</button>
+      <button type="button" id="rate" aria-label="Playback speed">1×</button>
+    </div>
+  </footer>
+</div>
+
+<script>
+(() => {
+  const css = getComputedStyle(document.documentElement);
+  const tok = (n) => css.getPropertyValue(n).trim();
+  const C = {
+    paper: tok("--paper"), card: tok("--card"), ink: tok("--ink"), muted: tok("--muted"), line: tok("--line"),
+    blue: tok("--blue"), bubble: tok("--bubble"), green: tok("--green"), amber: tok("--amber"), red: tok("--red"),
+    violet: tok("--violet"),
+  };
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const clamp01 = (v) => Math.max(0, Math.min(1, v));
+  const ease = (u) => (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
+  const easeOut = (u) => 1 - Math.pow(1 - u, 3);
+  const backOut = (u) => { const c = 1.7; return 1 + (c + 1) * Math.pow(u - 1, 3) + c * Math.pow(u - 1, 2); };
+  // Local progress of a window [a, b] inside a 0..1 clock.
+  const win = (t, a, b) => clamp01((t - a) / (b - a));
+
+  // ---------- canvas ----------
+  const cv = document.getElementById("cv");
+  const ctx = cv.getContext("2d");
+  const W = 1600, H = 900;
+  function resize() {
+    const r = cv.getBoundingClientRect();
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = Math.max(1, Math.round(r.width * dpr));
+    cv.height = Math.max(1, Math.round(r.height * dpr));
+  }
+  window.addEventListener("resize", resize);
+
+  const font = (px, weight = 400, fam = "Onest") => { ctx.font = `${weight} ${px}px "${fam}", "Helvetica Neue", sans-serif`; };
+  function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
+  function wrap(text, maxW) {
+    const words = text.split(" ");
+    const lines = [];
+    let cur = "";
+    for (const w of words) {
+      const t = cur ? `${cur} ${w}` : w;
+      if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; } else cur = t;
+    }
+    if (cur) lines.push(cur);
+    return lines;
+  }
+
+  // An iMessage bubble. kind: "sent" (blue), "recv" (grey). (x, y) is the top-left corner,
+  // or the top-right corner when right is true. Returns its size.
+  function bubble(text, x, y, o = {}) {
+    const { kind = "recv", alpha = 1, scale = 1, maxW = 380, size = 22, right = false, label = "", rot = 0 } = o;
+    if (alpha <= 0.01 || scale <= 0.01) return { w: 0, h: 0 };
+    font(size, 400);
+    const lines = wrap(text, maxW);
+    const lh = size * 1.3;
+    const tw = Math.max(...lines.map((l) => ctx.measureText(l).width));
+    const w = tw + 36, h = lines.length * lh + 22;
+    const x0 = right ? x - w : x;
+    ctx.save();
+    ctx.globalAlpha *= alpha;
+    ctx.translate(x0 + w / 2, y + h / 2);
+    ctx.rotate(rot);
+    ctx.scale(scale, scale);
+    ctx.translate(-w / 2, -h / 2);
+    if (label) {
+      font(16, 500);
+      ctx.fillStyle = C.muted;
+      ctx.textAlign = right ? "right" : "left";
+      ctx.fillText(label, right ? w - 6 : 6, -10);
+      ctx.textAlign = "left";
+    }
+    ctx.fillStyle = kind === "sent" ? C.blue : C.bubble;
+    rr(0, 0, w, h, Math.min(22, h / 2));
+    ctx.fill();
+    // tail
+    ctx.beginPath();
+    if (right) { ctx.moveTo(w - 14, h - 14); ctx.quadraticCurveTo(w + 2, h + 2, w + 8, h + 2); ctx.quadraticCurveTo(w - 4, h - 2, w - 2, h - 18); }
+    else { ctx.moveTo(14, h - 14); ctx.quadraticCurveTo(-2, h + 2, -8, h + 2); ctx.quadraticCurveTo(4, h - 2, 2, h - 18); }
+    ctx.fill();
+    font(size, 400);
+    ctx.fillStyle = kind === "sent" ? "#fff" : C.ink;
+    ctx.textBaseline = "middle";
+    lines.forEach((l, i) => ctx.fillText(l, 18, 11 + lh * (i + 0.5)));
+    ctx.textBaseline = "alphabetic";
+    ctx.restore();
+    return { w, h };
+  }
+
+  function shadowCard(x, y, w, h, r, fill = C.card, stroke = C.line) {
+    ctx.save();
+    ctx.shadowColor = "rgba(23, 32, 43, 0.08)";
+    ctx.shadowBlur = 24;
+    ctx.shadowOffsetY = 6;
+    ctx.fillStyle = fill;
+    rr(x, y, w, h, r);
+    ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1.5;
+    rr(x, y, w, h, r);
+    ctx.stroke();
+  }
+
+  // A person in a slot: filled when confirmed, dashed when open, amber ring when asked.
+  function slot(x, y, r, st, initial) {
+    ctx.lineWidth = 2.5;
+    if (st === "open") {
+      ctx.setLineDash([5, 5]);
+      ctx.strokeStyle = C.line;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+      return;
+    }
+    const col = st === "asked" ? C.amber : st === "no" ? C.red : C.green;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+    if (st === "asked") { ctx.fillStyle = C.card; ctx.fill(); ctx.strokeStyle = col; ctx.stroke(); }
+    else { ctx.fillStyle = col; ctx.fill(); }
+    font(r * 0.95, 600);
+    ctx.fillStyle = st === "asked" ? col : "#fff";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(initial, x, y + 1);
+    ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+  }
+
+  // ---------- the event's shared plan ----------
+  function drawLedger(cx, cy, a, setupFilled, glow = 0) {
+    if (a <= 0.01) return;
+    const w = 560, h = 270, x = cx - w / 2, y = cy - h / 2;
+    ctx.save();
+    ctx.globalAlpha = a;
+    shadowCard(x, y, w, h, 26);
+    font(28, 800, "Bricolage Grotesque");
+    ctx.fillStyle = C.ink;
+    ctx.fillText("Rally Demo 1018 A", x + 30, y + 50);
+    font(18);
+    ctx.fillStyle = C.muted;
+    ctx.fillText("Sun, Oct 18, Student Union", x + 30, y + 78);
+    const rows = [
+      { name: "Setup", time: "1–2 PM", people: [["C", "done"], ["Y", setupFilled >= 2 ? "done" : "open"]], need: 2, have: setupFilled },
+      { name: "Speakers", time: "1:30–2:30 PM", people: [["Y", "done"]], need: 1, have: 1 },
+    ];
+    rows.forEach((r, i) => {
+      const ry = y + 132 + i * 78;
+      ctx.strokeStyle = C.line; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x + 30, ry - 34); ctx.lineTo(x + w - 30, ry - 34); ctx.stroke();
+      font(24, 600); ctx.fillStyle = C.ink; ctx.fillText(r.name, x + 30, ry + 2);
+      font(17); ctx.fillStyle = C.muted; ctx.fillText(r.time, x + 30, ry + 26);
+      r.people.forEach(([ini, st], j) => slot(x + 300 + j * 52, ry + 6, 20, st, ini));
+      const full = r.have >= r.need;
+      font(22, 600);
+      ctx.fillStyle = full ? C.green : C.amber;
+      ctx.textAlign = "right";
+      ctx.fillText(`${r.have} of ${r.need}`, x + w - 30, ry + 12);
+      ctx.textAlign = "left";
+      if (i === 0 && glow > 0) {
+        ctx.save();
+        ctx.globalAlpha = a * glow;
+        ctx.strokeStyle = C.green; ctx.lineWidth = 3;
+        rr(x + 14, ry - 30, w - 28, 66, 14); ctx.stroke();
+        ctx.restore();
+      }
+    });
+    ctx.restore();
+  }
+
+  // ---------- beat 0: title ----------
+  function drawTitle(now) {
+    const a = P.titleA + P.closeA;
+    if (a <= 0.01) return;
+    ctx.save();
+    ctx.globalAlpha = P.titleA;
+    bubble("can someone cover setup at 1?", 1430, 330, { kind: "sent", right: true, size: 26, label: "Caleb" });
+    // Rally typing indicator: the one piece of ambient motion in the deck.
+    const tx = 1060, ty = 450;
+    ctx.fillStyle = C.bubble;
+    rr(tx, ty, 150, 76, 38); ctx.fill();
+    ctx.beginPath(); ctx.arc(tx + 6, ty + 68, 12, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(tx - 6, ty + 82, 6, 0, Math.PI * 2); ctx.fill();
+    for (let i = 0; i < 3; i++) {
+      const ph = reduced ? 0.5 : (Math.sin(now / 260 - i * 0.9) + 1) / 2;
+      ctx.fillStyle = `rgba(103, 114, 133, ${0.35 + 0.55 * ph})`;
+      ctx.beginPath(); ctx.arc(tx + 45 + i * 30, ty + 38 - ph * 6, 10, 0, Math.PI * 2); ctx.fill();
+    }
+    font(16, 500); ctx.fillStyle = C.muted; ctx.fillText("Rally", tx + 6, ty - 10);
+    ctx.restore();
+    if (P.closeA > 0.01) drawLedger(1170, 470, P.closeA, 2);
+  }
+
+  // ---------- beat 1: scattered threads converge ----------
+  const CHAOS = [
+    { t: "I can bring speakers", k: "recv", x: 140, y: 230, r: -0.035 },
+    { t: "who's on setup??", k: "sent", x: 560, y: 300, r: 0.03 },
+    { t: "can't make it saturday anymore, sorry", k: "recv", x: 960, y: 220, r: 0.02 },
+    { t: "wait, which event is this for", k: "recv", x: 200, y: 470, r: 0.03 },
+    { t: "is setup still at 1pm?", k: "sent", x: 760, y: 520, r: -0.03 },
+    { t: "I'll do cleanup if nobody else does", k: "recv", x: 1080, y: 420, r: -0.02 },
+    { t: "did anyone confirm the speakers", k: "sent", x: 430, y: 620, r: -0.015 },
+    { t: "ok who's actually coming", k: "recv", x: 1130, y: 610, r: 0.025 },
+  ];
+  const LEDGER_C = { x: 800, y: 455 };
+  function drawChaos() {
+    if (P.chaosA <= 0.01) return;
+    ctx.save();
+    ctx.globalAlpha = P.chaosA;
+    CHAOS.forEach((b, i) => {
+      const pop = backOut(win(P.chaosT, i * 0.09, i * 0.09 + 0.3));
+      const fly = ease(win(P.flyT, i * 0.04, i * 0.04 + 0.6));
+      if (pop <= 0.01 || fly >= 0.999) return;
+      font(24);
+      const bw = Math.min(400, ctx.measureText(b.t).width) + 36;
+      const x = lerp(b.x, LEDGER_C.x - bw / 2, fly);
+      const y = lerp(b.y, LEDGER_C.y - 20, fly);
+      bubble(b.t, x, y, { kind: b.k, size: 24, scale: pop * lerp(1, 0.15, fly), alpha: 1 - fly * fly, rot: b.r * (1 - fly) });
+    });
+    ctx.restore();
+  }
+
+  // ---------- beat 2: what to watch during the live demo ----------
+  const WATCH = [
+    { did: "Yewon replies YES", then: "Setup stays at 1 of 2", col: "amber" },
+    { did: "Rally flags the overlap with Speakers", then: "Still 1 of 2. Nothing changed.", col: "amber" },
+    { did: "Yewon replies CONFIRM OVERLAP", then: "Setup becomes 2 of 2", col: "green" },
+  ];
+  function drawLedgerScene() {
+    const a = P.ledgerA * ease(win(P.flyT, 0.35, 1));
+    drawLedger(lerp(LEDGER_C.x, 450, ease(P.ledgerPos)), LEDGER_C.y, a, 1);
+    if (P.watchA <= 0.01) return;
+    ctx.save();
+    ctx.globalAlpha = P.watchA;
+    font(20, 500); ctx.fillStyle = C.muted;
+    ctx.fillText("During the demo, watch Setup", 860, 262);
+    WATCH.forEach((w, i) => {
+      const u = easeOut(win(P.watchT, i * 0.28, i * 0.28 + 0.35));
+      if (u <= 0.01) return;
+      const y = 320 + i * 118;
+      ctx.save();
+      ctx.globalAlpha *= u;
+      ctx.translate((1 - u) * 30, 0);
+      ctx.strokeStyle = C.blue; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(880, y + 14, 22, 0, Math.PI * 2); ctx.stroke();
+      font(22, 600); ctx.fillStyle = C.blue; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(String(i + 1), 880, y + 15);
+      ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+      if (i < WATCH.length - 1) {
+        ctx.strokeStyle = C.line; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(880, y + 42); ctx.lineTo(880, y + 104); ctx.stroke();
+      }
+      font(26, 600); ctx.fillStyle = C.ink; ctx.fillText(w.did, 924, y + 10);
+      font(22, 500); ctx.fillStyle = C[w.col]; ctx.fillText(w.then, 924, y + 44);
+      ctx.restore();
+    });
+    ctx.restore();
+  }
+
+  // ---------- beat 3: replay of the demo through the system ----------
+  const N = {
+    phone: { x: 140, y: 400, t: "Phones", s: "Caleb, Yewon" },
+    photon: { x: 370, y: 400, t: "iMessage", s: "via Photon" },
+    inbox: { x: 600, y: 400, t: "Inbox", s: "each message stored once" },
+    rules: { x: 830, y: 300, t: "Fixed rules", s: "yes, no, status" },
+    claude: { x: 830, y: 500, t: "Claude", s: "on our Mac", violet: true },
+    checks: { x: 1070, y: 400, t: "Checks", s: "who, consent, version" },
+    plan: { x: 1330, y: 400, t: "Shared plan", s: "" },
+  };
+  const NW = 220, NH = 78;
+  const TRACE = [
+    { who: "Caleb", text: "For Rally Demo 1018 A, can Yewon also join me on Setup?", lane: "claude", check: "green",
+      to: "Rally → Yewon", reply: "Could you cover Setup, 1–2 PM? Reply YES or NO. No assignment has changed yet." },
+    { who: "Yewon", text: "YES Setup", lane: "rules", check: "amber",
+      to: "Rally → Yewon", reply: "Setup overlaps with your Speakers. Nothing changed. To accept anyway, reply CONFIRM OVERLAP Setup." },
+    { who: "Yewon", text: "CONFIRM OVERLAP Setup", lane: "rules", check: "green",
+      to: "Rally → Caleb and Yewon", reply: "Yewon accepted Setup. I've updated the assignment." },
+    { who: "Caleb", text: "what's my status?", lane: "rules", check: "muted",
+      to: "Rally → Caleb", reply: "Setup: 2 of 2 confirmed, Caleb and Yewon. Speakers: 1 of 1, Yewon." },
+  ];
+  const ARC = (() => {
+    const pts = [];
+    const a = N.plan, b = N.phone;
+    const p0 = [a.x, a.y - NH / 2], p1 = [(a.x + b.x) / 2, 80], p2 = [b.x, b.y - NH / 2];
+    for (let i = 0; i <= 40; i++) {
+      const t = i / 40;
+      pts.push([(1 - t) * (1 - t) * p0[0] + 2 * (1 - t) * t * p1[0] + t * t * p2[0], (1 - t) * (1 - t) * p0[1] + 2 * (1 - t) * t * p1[1] + t * t * p2[1]]);
+    }
+    return pts;
+  })();
+  function along(pts, f) {
+    const seg = [];
+    let total = 0;
+    for (let i = 1; i < pts.length; i++) { const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); seg.push(d); total += d; }
+    let rem = clamp01(f) * total;
+    for (let i = 0; i < seg.length; i++) {
+      if (rem <= seg[i]) { const u = seg[i] ? rem / seg[i] : 0; return [lerp(pts[i][0], pts[i + 1][0], u), lerp(pts[i][1], pts[i + 1][1], u)]; }
+      rem -= seg[i];
+    }
+    return pts[pts.length - 1];
+  }
+  const inPath = (lane) => [N.phone, N.photon, N.inbox, N[lane], N.checks, N.plan].map((n) => [n.x, n.y]);
+  // Fraction of the inbound trip at which a packet reaches the checks node.
+  const AT_CHECKS = 0.78;
+
+  function drawNode(n, o = {}) {
+    const { flash = 0, flashCol = C.green, sub = n.s, subCol = C.muted } = o;
+    const x = n.x - NW / 2, y = n.y - NH / 2;
+    shadowCard(x, y, NW, NH, 18, n.violet ? "#f1eefe" : C.card, n.violet ? "#cfc5fb" : C.line);
+    if (flash > 0.01) {
+      ctx.save(); ctx.globalAlpha *= flash; ctx.strokeStyle = flashCol; ctx.lineWidth = 4;
+      rr(x - 3, y - 3, NW + 6, NH + 6, 20); ctx.stroke(); ctx.restore();
+    }
+    font(22, 600); ctx.fillStyle = n.violet ? C.violet : C.ink; ctx.textAlign = "center";
+    ctx.fillText(n.t, n.x, n.y - 2);
+    font(15, 500); ctx.fillStyle = subCol;
+    ctx.fillText(sub, n.x, n.y + 22);
+    ctx.textAlign = "left";
+  }
+  function edge(a, b) {
+    ctx.strokeStyle = C.line; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  }
+  function drawPipeline() {
+    if (P.pipeA <= 0.01) return;
+    const T = P.pipeT;
+    const n = TRACE.length;
+    const prog = TRACE.map((_, i) => clamp01(T * n - i));
+    const idx = Math.min(n - 1, Math.floor(T * n));
+    ctx.save();
+    ctx.globalAlpha = P.pipeA;
+
+    // edges and the reply arc
+    edge(N.phone, N.photon); edge(N.photon, N.inbox);
+    edge(N.inbox, N.rules); edge(N.inbox, N.claude);
+    edge(N.rules, N.checks); edge(N.claude, N.checks); edge(N.checks, N.plan);
+    ctx.setLineDash([6, 8]); ctx.strokeStyle = C.line; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ARC.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.stroke();
+    ctx.setLineDash([]);
+    font(16, 500); ctx.fillStyle = C.muted; ctx.textAlign = "center";
+    ctx.fillText("replies, each sent once from the outbox", (N.plan.x + N.phone.x) / 2, 204);
+    ctx.textAlign = "left";
+
+    // derived state from the replay clock
+    const inU = (i) => win(prog[i], 0, 0.6);
+    const atChecks = (i) => inU(i) >= AT_CHECKS;
+    const atPlan = (i) => inU(i) >= 1;
+    const claudeCalls = TRACE.filter((m, i) => m.lane === "claude" && inU(i) > 0.5).length;
+    const ruleMsgs = TRACE.filter((m, i) => m.lane === "rules" && inU(i) > 0.5).length;
+    const filled = atPlan(2) ? 2 : 1;
+    const asked = atPlan(0) && !atPlan(2);
+    const cur = TRACE[idx];
+    const cu = prog[idx];
+    const checkFlash = Math.sin(Math.PI * win(cu, 0.6 * AT_CHECKS - 0.02, 0.6 * AT_CHECKS + 0.16));
+    const planFlash = Math.sin(Math.PI * win(cu, 0.58, 0.75));
+
+    // packets: inbound along the lane, reply back along the arc
+    TRACE.forEach((m, i) => {
+      const p = prog[i];
+      if (p <= 0 || p >= 1) return;
+      const u = win(p, 0, 0.6);
+      if (u > 0 && u < 1) {
+        const [x, y] = along(inPath(m.lane), u);
+        const col = m.lane === "claude" && u > 0.45 && u < AT_CHECKS ? C.violet : C.blue;
+        ctx.fillStyle = col;
+        ctx.beginPath(); ctx.arc(x, y, 12, 0, Math.PI * 2); ctx.fill();
+      }
+      const r = win(p, 0.68, 0.92);
+      if (r > 0 && r < 1) {
+        const [x, y] = along(ARC, easeOut(r));
+        ctx.fillStyle = m.check === "amber" ? C.amber : m.check === "muted" ? C.muted : C.green;
+        ctx.beginPath(); ctx.arc(x, y, 11, 0, Math.PI * 2); ctx.fill();
+      }
+    });
+
+    drawNode(N.phone); drawNode(N.photon); drawNode(N.inbox);
+    drawNode(N.rules, { sub: ruleMsgs ? `${ruleMsgs} message${ruleMsgs > 1 ? "s" : ""} handled` : N.rules.s });
+    drawNode(N.claude, { sub: claudeCalls ? "1 call in the whole demo" : N.claude.s, subCol: claudeCalls ? C.violet : C.muted });
+    drawNode(N.checks, { flash: checkFlash, flashCol: C[cur.check] });
+    drawNode(N.plan, {
+      flash: planFlash, flashCol: C[cur.check],
+      sub: filled === 2 ? "Setup 2 of 2" : asked ? "Setup 1 of 2, Yewon asked" : "Setup 1 of 2",
+      subCol: filled === 2 ? C.green : C.amber,
+    });
+
+    // transcript strip for the current message
+    const inA = T >= 1 ? 1 : Math.min(1, win(cu, 0, 0.08) * 2) * (idx === n - 1 ? 1 : 1 - win(cu, 0.97, 1));
+    bubble(cur.text, 90, 600, { kind: "sent", label: cur.who, alpha: inA, maxW: 520, size: 21 });
+    const repA = T >= 1 ? 1 : win(cu, 0.88, 0.95) * (idx === n - 1 ? 1 : 1 - win(cu, 0.97, 1));
+    bubble(cur.reply, 790, 600, { kind: "recv", label: cur.to, alpha: repA, maxW: 640, size: 21 });
+    ctx.restore();
+  }
+
+  // ---------- beat 4: Claude suggests, the backend checks ----------
+  const GATE = { x: 820, y: 500 };
+  const CHECKS = ["Caleb organizes this event", "The person opted in to this event", "The task hasn't changed since the ask"];
+  function drawGate() {
+    if (P.gateA <= 0.01) return;
+    const T = P.gateT;
+    ctx.save();
+    ctx.globalAlpha = P.gateA;
+    const cl = { x: 210, y: GATE.y, t: "Claude", s: "suggests an action", violet: true };
+    const plan = { x: 1360, y: GATE.y, t: "Shared plan", s: "" };
+    ctx.strokeStyle = C.line; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(cl.x, GATE.y); ctx.lineTo(plan.x, GATE.y); ctx.stroke();
+
+    // which decision is in flight
+    const first = T < 0.5;
+    const v = first ? T / 0.5 : (T - 0.5) / 0.5;
+    const tick = (k) => win(v, 0.3 + k * 0.08, 0.36 + k * 0.08);
+    const states = CHECKS.map((_, k) => {
+      if (first) return tick(k) > 0.5 ? "pass" : "wait";
+      if (k === 0) return tick(0) > 0.5 ? "pass" : "wait";
+      if (k === 1) return tick(1) > 0.5 ? "fail" : "wait";
+      return "skip";
+    });
+
+    // checklist above the gate
+    const px = GATE.x - 230, py = 215, pw = 460, ph = 200;
+    shadowCard(px, py, pw, ph, 22);
+    font(20, 600); ctx.fillStyle = C.ink; ctx.fillText("Before saving anything", px + 26, py + 40);
+    CHECKS.forEach((c, k) => {
+      const y = py + 88 + k * 40;
+      const st = states[k];
+      const col = st === "pass" ? C.green : st === "fail" ? C.red : C.line;
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.arc(px + 38, y - 6, 12, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.beginPath();
+      if (st === "pass") { ctx.moveTo(px + 32, y - 6); ctx.lineTo(px + 37, y - 1); ctx.lineTo(px + 45, y - 11); }
+      if (st === "fail") { ctx.moveTo(px + 33, y - 11); ctx.lineTo(px + 43, y - 1); ctx.moveTo(px + 43, y - 11); ctx.lineTo(px + 33, y - 1); }
+      ctx.stroke();
+      font(19, st === "skip" ? 400 : 500); ctx.fillStyle = st === "skip" ? C.line : C.ink;
+      ctx.fillText(c, px + 62, y);
+    });
+    // the gate itself
+    const failing = !first && states[1] === "fail";
+    ctx.strokeStyle = failing ? C.red : C.ink; ctx.lineWidth = 6; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(GATE.x, py + ph + 18); ctx.lineTo(GATE.x, GATE.y + 70); ctx.stroke();
+    ctx.lineCap = "butt";
+
+    drawNode(cl);
+    const offered = T >= 0.5 || win(v, 0.6, 0.85) >= 1;
+    drawNode(plan, { sub: offered ? "Yewon asked, not assigned" : "Setup 1 of 2", subCol: C.amber, flash: first ? Math.sin(Math.PI * win(v, 0.82, 0.98)) : 0, flashCol: C.amber });
+
+    // the decision card
+    const cw = 270, chh = 66;
+    let cx, alpha = 1, shake = 0, border = C.violet;
+    if (first) {
+      cx = v < 0.6 ? lerp(cl.x + 60, GATE.x - cw / 2 - 30, ease(win(v, 0.02, 0.28))) : lerp(GATE.x - cw / 2 - 30, plan.x - 40, ease(win(v, 0.6, 0.82)));
+      alpha = 1 - win(v, 0.82, 0.92);
+      if (states.every((s) => s === "pass")) border = C.green;
+    } else {
+      cx = lerp(cl.x + 60, GATE.x - cw / 2 - 30, ease(win(v, 0.02, 0.28)));
+      if (failing) {
+        border = C.red;
+        shake = Math.sin(v * 140) * 8 * (1 - win(v, 0.4, 0.55));
+        cx = lerp(cx, cl.x + 160, ease(win(v, 0.58, 0.8)));
+        alpha = 1 - win(v, 0.7, 0.85);
+      }
+    }
+    if (alpha > 0.01) {
+      ctx.save();
+      ctx.globalAlpha *= alpha;
+      const x = cx - cw / 2 + shake, y = GATE.y - chh / 2;
+      shadowCard(x, y, cw, chh, 14, C.card, border);
+      font(14, 500); ctx.fillStyle = C.violet; ctx.fillText("Claude suggests", x + 18, y + 24);
+      font(20, 600); ctx.fillStyle = C.ink; ctx.fillText(first ? "Offer Setup to Yewon" : "Assign Taylor to Setup", x + 18, y + 50);
+      ctx.restore();
+    }
+    if (!first) {
+      const la = win(v, 0.55, 0.65);
+      font(22, 600); ctx.fillStyle = C.red; ctx.globalAlpha = P.gateA * la; ctx.textAlign = "center";
+      ctx.fillText("Taylor never joined. Rejected, nothing saved.", GATE.x, GATE.y + 110);
+      ctx.textAlign = "left";
+    } else {
+      const la = win(v, 0.85, 0.95);
+      font(22, 600); ctx.fillStyle = C.amber; ctx.globalAlpha = P.gateA * la; ctx.textAlign = "center";
+      ctx.fillText("Saved as an offer. Only Yewon's yes makes it a commitment.", 1000, GATE.y + 110);
+      ctx.textAlign = "left";
+    }
+    ctx.restore();
+  }
+
+  // ---------- beat 5: races and duplicate deliveries ----------
+  function avatar(x, y, ini, name) {
+    ctx.fillStyle = C.bubble; ctx.beginPath(); ctx.arc(x, y, 26, 0, Math.PI * 2); ctx.fill();
+    font(22, 600); ctx.fillStyle = C.ink; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(ini, x, y + 1); ctx.textBaseline = "alphabetic";
+    font(16, 500); ctx.fillStyle = C.muted; ctx.fillText(name, x, y + 48); ctx.textAlign = "left";
+  }
+  function drawRace() {
+    if (P.raceA <= 0.01) return;
+    const T = P.raceT;
+    ctx.save();
+    ctx.globalAlpha = P.raceA;
+    font(22, 600); ctx.fillStyle = C.ink;
+    ctx.fillText("Two people take the last spot", 90, 232);
+    ctx.fillText("Photon delivers the same yes twice", 870, 232);
+    font(16, 500); ctx.fillStyle = C.muted;
+    ctx.fillText("Simulated in our test suite", 90, 258);
+    ctx.fillText("Simulated in our test suite", 870, 258);
+    ctx.strokeStyle = C.line; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(800, 210); ctx.lineTo(800, 690); ctx.stroke();
+
+    // left: race for one spot
+    const J = { x: 120, y: 360 }, M = { x: 120, y: 540 }, S = { x: 560, y: 450 };
+    avatar(J.x, J.y, "J", "Jordan"); avatar(M.x, M.y, "M", "Maya");
+    shadowCard(S.x - 110, S.y - 80, 220, 170, 22);
+    font(22, 600); ctx.fillStyle = C.ink; ctx.textAlign = "center"; ctx.fillText("Speakers", S.x, S.y - 30);
+    const filled = T > 0.32;
+    slot(S.x, S.y + 18, 26, filled ? "done" : "open", "J");
+    font(17, 600); ctx.fillStyle = filled ? C.green : C.amber; ctx.textAlign = "center"; ctx.fillText(filled ? "1 of 1" : "0 of 1", S.x, S.y + 74);
+    ctx.textAlign = "left";
+    const jy = win(T, 0.06, 0.32), my = win(T, 0.09, 0.36);
+    if (jy > 0 && jy < 1) bubble("YES", lerp(J.x + 40, S.x - 150, ease(jy)), lerp(J.y - 22, S.y - 22, ease(jy)), { kind: "sent", size: 20 });
+    if (my > 0) {
+      const back = ease(win(T, 0.36, 0.5));
+      const x = lerp(lerp(M.x + 40, S.x - 150, ease(my)), M.x + 90, back);
+      const y = lerp(lerp(M.y - 22, S.y + 10, ease(my)), M.y - 22, back);
+      const a = 1 - win(T, 0.46, 0.56);
+      if (a > 0.01) {
+        ctx.save(); ctx.globalAlpha *= a;
+        bubble("YES", x, y, { kind: "sent", size: 20 });
+        if (back > 0) { ctx.strokeStyle = C.red; ctx.lineWidth = 3; rr(x - 3, y - 3, 82, 52, 24); ctx.stroke(); }
+        ctx.restore();
+      }
+    }
+    bubble("That spot was just filled. Nothing changed for you.", 180, 610, { kind: "recv", size: 19, maxW: 460, label: "Rally → Maya", alpha: win(T, 0.5, 0.6) });
+
+    // right: duplicate delivery
+    const ph = { x: 960, y: 450, t: "iMessage", s: "via Photon" }, ib = { x: 1380, y: 450, t: "Inbox", s: "" };
+    edge(ph, ib);
+    const firstIn = T > 0.32, dupHit = T > 0.66;
+    drawNode(ph);
+    drawNode(ib, { sub: dupHit ? "message ID already seen" : firstIn ? "stored, acted on once" : "", subCol: dupHit ? C.red : C.green, flash: Math.sin(Math.PI * win(T, 0.64, 0.8)), flashCol: C.red });
+    const pkt = (u, dup) => {
+      if (u <= 0 || u >= 1) return;
+      const x = lerp(ph.x + 90, ib.x - 160, ease(u));
+      shadowCard(x - 10, ph.y - 26, 140, 52, 26, C.blue, C.blue);
+      font(17, 600); ctx.fillStyle = "#fff"; ctx.fillText("YES, id 8f2", x + 8, ph.y + 6);
+      if (dup) { font(15, 500); ctx.fillStyle = C.muted; ctx.fillText("again", x + 36, ph.y - 36); }
+    };
+    pkt(win(T, 0.12, 0.32), false);
+    pkt(win(T, 0.46, 0.66), true);
+    if (dupHit) {
+      const a = win(T, 0.66, 0.74);
+      font(20, 600); ctx.fillStyle = C.red; ctx.globalAlpha = P.raceA * a; ctx.textAlign = "center";
+      ctx.fillText("Ignored. Same message ID.", ib.x, ib.y - 70); ctx.textAlign = "left"; ctx.globalAlpha = P.raceA;
+    }
+    // counters that must not move on the duplicate
+    const ca = win(T, 0.32, 0.4);
+    if (ca > 0) {
+      ctx.globalAlpha = P.raceA * ca;
+      [["Assignments", "1"], ["Notifications", "1"]].forEach(([k, val], i) => {
+        const x = 1000 + i * 240, y = 600;
+        font(40, 800, "Bricolage Grotesque"); ctx.fillStyle = C.ink; ctx.fillText(val, x, y);
+        font(17, 500); ctx.fillStyle = C.muted; ctx.fillText(k, x + 34, y - 6);
+      });
+    }
+    ctx.restore();
+  }
+
+  // ---------- beats ----------
+  const DEFAULTS = {
+    titleA: 0, closeA: 0, chaosA: 0, chaosT: 0, flyT: 0, ledgerA: 0, ledgerPos: 0, watchA: 0, watchT: 0,
+    pipeA: 0, pipeT: 0, gateA: 0, gateT: 0, raceA: 0, raceT: 0, failA: 0, failT: 0,
+  };
+  const BEATS = [
+    { scene: 0, headline: "", caption: "", to: { titleA: 1 }, dur: 600 },
+    {
+      scene: 0, headline: "Event plans scatter across a dozen threads",
+      caption: `Who said they'd bring speakers? Is setup still at 1? Rally pulls those promises into one shared plan for the event, and checks with each person before anything in it changes.`,
+      to: { titleA: 0, chaosA: 1, ledgerA: 1 }, dur: 600,
+      clocks: [{ k: "chaosT", from: 0, to: 1, dur: 1500, delay: 200 }, { k: "flyT", from: 0, to: 1, dur: 1500, delay: 2600 }],
+    },
+    {
+      scene: 1, headline: "Watch the count",
+      caption: `Caleb will ask Yewon to join Setup. Yewon already has Speakers, which overlaps, so <strong>a yes alone shouldn't be enough</strong>. Both phones are live, in ordinary one-on-one iMessage threads.`,
+      to: { chaosA: 0, ledgerPos: 1, watchA: 1 }, dur: 900,
+      clocks: [{ k: "watchT", from: 0, to: 1, dur: 2200, delay: 500 }],
+    },
+    {
+      scene: 2, headline: "What just happened, message by message",
+      caption: `The demo's four messages, replayed through Rally. <strong>Only Caleb's request needed Claude</strong>, to read plain English and suggest an offer. The yes, the overlap check and the status reply are fixed rules, so they keep working even when Claude is offline.`,
+      to: { ledgerA: 0, watchA: 0, pipeA: 1 }, dur: 700,
+      clocks: [{ k: "pipeT", from: 0, to: 1, dur: 14000, delay: 500 }],
+    },
+    {
+      scene: 2, headline: "Claude suggests. Rally decides.",
+      caption: `Claude's answer is a suggestion in a fixed format, never a database write or a sent text. Before anything is saved, Rally re-checks who asked, whether the person opted in, and that the task hasn't changed. Even then it's only an offer until that person says yes.`,
+      to: { pipeA: 0, gateA: 1 }, dur: 700,
+      clocks: [{ k: "gateT", from: 0, to: 1, dur: 9000, delay: 400 }],
+    },
+    {
+      scene: 2, headline: "Two yeses for one spot, or one yes sent twice",
+      caption: `Real messaging is messy. When two people accept the last spot at the same moment, exactly one gets it and the other is told the truth. When Photon redelivers the same message, Rally recognizes its ID and nothing happens twice.`,
+      to: { gateA: 0, raceA: 1 }, dur: 700,
+      clocks: [{ k: "raceT", from: 0, to: 1, dur: 7000, delay: 400 }],
+    },
+    {
+      scene: 3, headline: "What broke, and what we changed",
+      caption: "",
+      to: { raceA: 0, failA: 1 }, dur: 600,
+      clocks: [{ k: "failT", from: 0, to: 1, dur: 2400, delay: 200 }],
+    },
+    { scene: 3, headline: "", caption: "", to: { failA: 0, closeA: 1 }, dur: 900 },
+  ];
+  const SCENES = ["Why", "Live demo", "Under the hood", "What we learned"];
+  const FAILS = [
+    ["“Cover for me instead” picked the wrong task", "Rally asks which task first, and rejects any Claude answer that names a different one."],
+    ["Replies took 21 to 27 seconds to start", "The Claude worker checks for work every 2 seconds, and Rally replies “Got it, I'll check the plan” right away."],
+    ["An update silently broke the running Claude worker", "Rally now versions what it sends the worker, so old and new workers both keep working."],
+  ];
+
+  function stateAt(i) {
+    const p = { ...DEFAULTS };
+    for (let j = 0; j <= i; j++) {
+      Object.assign(p, BEATS[j].to);
+      for (const c of BEATS[j].clocks || []) p[c.k] = c.to;
+    }
+    return p;
+  }
+  const P = { ...DEFAULTS };
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let beat = 0, anim = null, rate = 1;
+
+  function go(i, animate) {
+    i = Math.max(0, Math.min(BEATS.length - 1, i));
+    const target = stateAt(i);
+    if (!animate || reduced) {
+      Object.assign(P, target);
+      anim = null;
+    } else {
+      const b = BEATS[i];
+      const clocks = b.clocks || [];
+      for (const c of clocks) P[c.k] = c.from;
+      anim = { from: { ...P }, to: target, dur: b.dur || 800, clocks, t: 0 };
+    }
+    beat = i;
+    renderText();
+  }
+  function next() {
+    if (anim) { Object.assign(P, anim.to); anim = null; return; }
+    if (beat < BEATS.length - 1) go(beat + 1, true);
+  }
+  function prev() { go(beat - 1, false); }
+
+  // ---------- DOM ----------
+  const $ = (id) => document.getElementById(id);
+  $("fail-rows").innerHTML = FAILS.map(([a, b]) => `<tr><td class="what">${a}</td><td>${b}</td></tr>`).join("");
+  $("progress").innerHTML = SCENES.map((name, s) => {
+    const ticks = BEATS.map((b, i) => (b.scene === s ? `<span class="tick" data-i="${i}"></span>` : "")).join("");
+    return `<div class="scene"><span class="label">${name}</span><div class="ticks">${ticks}</div></div>`;
+  }).join("");
+
+  function renderText() {
+    const b = BEATS[beat];
+    $("headline").textContent = b.headline;
+    $("caption").innerHTML = b.caption;
+    for (const el of [$("headline"), $("caption")]) { el.classList.remove("fade-in"); void el.offsetWidth; el.classList.add("fade-in"); }
+    document.querySelectorAll(".tick").forEach((t) => {
+      const i = +t.dataset.i;
+      t.className = "tick" + (i < beat ? " done" : i === beat ? " now" : "");
+    });
+    document.querySelectorAll(".scene").forEach((el, s) => el.classList.toggle("on", s === b.scene));
+    try { history.replaceState(null, "", `#b=${beat}`); } catch (e) { /* sandboxed frames may refuse */ }
+  }
+  function show(el, a) {
+    el.style.opacity = a;
+    el.style.visibility = a > 0.01 ? "visible" : "hidden";
+  }
+  function updateLive() {
+    show($("title-card"), P.titleA);
+    show($("close-card"), P.closeA);
+    show($("faillog"), P.failA);
+    const rows = $("fail-rows").children;
+    for (let i = 0; i < rows.length; i++) {
+      const u = easeOut(win(P.failT, i * 0.18, i * 0.18 + 0.35));
+      rows[i].style.opacity = u;
+      rows[i].style.transform = `translateX(${(1 - u) * 2}cqw)`;
+    }
+    const st = $("stats");
+    const su = easeOut(win(P.failT, 0.6, 1));
+    st.style.opacity = su;
+    st.style.transform = `translateY(${(1 - su) * 1}cqw)`;
+  }
+
+  function draw(now) {
+    ctx.setTransform(cv.width / W, 0, 0, cv.height / H, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = C.paper;
+    ctx.fillRect(0, 0, W, H);
+    drawTitle(now);
+    drawLedgerScene();
+    drawChaos();
+    drawPipeline();
+    drawGate();
+    drawRace();
+  }
+
+  let lastNow = performance.now();
+  function frame(now) {
+    const dt = Math.min(100, now - lastNow);
+    lastNow = now;
+    if (anim) {
+      anim.t += dt * rate;
+      let done = true;
+      const clockKeys = new Set(anim.clocks.map((c) => c.k));
+      const u = Math.min(1, anim.t / anim.dur);
+      for (const k of Object.keys(anim.to)) {
+        if (clockKeys.has(k)) continue;
+        P[k] = lerp(anim.from[k], anim.to[k], ease(u));
+      }
+      if (u < 1) done = false;
+      for (const c of anim.clocks) {
+        const cu = clamp01((anim.t - (c.delay || 0)) / c.dur);
+        P[c.k] = lerp(c.from, c.to, cu);
+        if (cu < 1) done = false;
+      }
+      if (done) { Object.assign(P, anim.to); anim = null; }
+    }
+    draw(now);
+    updateLive();
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- input ----------
+  $("stage").addEventListener("click", next);
+  $("next").addEventListener("click", (e) => { e.stopPropagation(); next(); });
+  $("prev").addEventListener("click", (e) => { e.stopPropagation(); prev(); });
+  const RATES = [0.5, 1, 2, 4];
+  $("rate").addEventListener("click", (e) => {
+    e.stopPropagation();
+    rate = RATES[(RATES.indexOf(rate) + 1) % RATES.length];
+    $("rate").textContent = `${rate}×`;
+  });
+  window.addEventListener("keydown", (e) => {
+    if (["ArrowRight", "PageDown", " ", "Enter"].includes(e.key)) { e.preventDefault(); next(); }
+    else if (["ArrowLeft", "PageUp", "Backspace"].includes(e.key)) { e.preventDefault(); prev(); }
+    else if (/^[1-4]$/.test(e.key)) {
+      const first = BEATS.findIndex((b) => b.scene === +e.key - 1);
+      if (first >= 0) go(first, true);
+    } else if (e.key === "s" || e.key === "S") { $("rate").click(); }
+    else if (e.key === "r" || e.key === "R") { go(beat, true); }
+    else if (e.key === "f" || e.key === "F") {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else document.documentElement.requestFullscreen?.().catch(() => { /* blocked outside a user gesture */ });
+    }
+  });
+
+  resize();
+  const m = /b=(\d+)/.exec(location.hash);
+  go(m ? +m[1] : 0, false);
+  const start = () => requestAnimationFrame((t) => { lastNow = t; frame(t); });
+  // Canvas text only uses web fonts once they are loaded, so wait for the faces it draws with.
+  const faces = ["400 20px Onest", "500 20px Onest", "600 20px Onest", "800 20px \"Bricolage Grotesque\""];
+  (document.fonts ? Promise.all(faces.map((f) => document.fonts.load(f))) : Promise.resolve()).then(start, start);
+})();
+</script>
+</body>
+</html>

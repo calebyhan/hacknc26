@@ -1,127 +1,111 @@
 # Rally
 
-**Status:** A/B messaging/domain, C phone setup/AI worker and D iOS integration are combined on `main`. **405 tests pass; `npm run demo:rehearse` runs the complete simulated coordination flow without phones or credentials.** Real Codex evaluation passes 23 synthetic cases. Offers show reply deadlines, stale queued requests are suppressed, and STATUS distinguishes duplicate event names. User-observed live setup/JOIN/STATUS/offer expiry is recorded, but **actual target acceptance/reassignment and live app parity remain unverified; M1/M2 and the final M3 gate are open.** See [demo readiness and remaining checks](docs/23-demo-readiness.md).
+> An iMessage-first group coordination agent that remembers what people committed to, keeps everyone aligned, and proposes the smallest safe change when plans break.
 
-**Primary experience:** iMessage via Photon Spectrum.  
-**Companion experience:** lightweight SwiftUI iOS app for project/event setup, explicit contact selection, membership, and live status.  
-**Backend recommendation:** Convex + TypeScript action engine.  
-**Inference:** constrained Claude or Codex worker on an Apple Silicon Mac; deterministic fallback if unavailable.
+**Primary interface:** iMessage via Photon Spectrum. **Companion:** SwiftUI iOS app for setup, roster and live status. **Backend:** Convex + TypeScript. **Language understanding:** a constrained local Claude/Codex worker, with a deterministic fallback.
 
-> **One-sentence pitch:** Rally is an iMessage-first group coordination agent that remembers what people committed to, keeps everyone aligned, and proposes the smallest safe change when plans break.
+## Status
 
-## The experience we are building
+- **Automated:** `npm run check` passes 572 tests (one optional test skipped) with strict TypeScript. `npm run demo:rehearse` runs the whole coordination flow in simulation, with no phones or credentials. The scripted eval passes 29/29; the real-model eval on synthetic inputs passed 27/29 before a targeted prompt fix (corpus: `tests/eval/corpus.ts`; results: `tests/eval/results/`).
+- **Live:** real JOIN, STATUS, guided setup, team staffing, organizer approval, overlap confirmation and assignment acceptance have been observed on real phones.
+- **Still unverified:** target NO, message replay, STOP/RESUME, a worker-outage drill, long-lived iOS token refresh, and the final M3 release gate. Weather and other stretch features are cut from the demo.
 
-1. Organizer creates a **Charity 5K** event in the iOS companion app and selects participants from Contacts. *(App is P1; for P0 the event is created via iMessage draft or a labeled bootstrap script — ADR-013.)*
-2. Selected contacts receive an invitation *through a compliant, user-initiated channel*; each participant opts in by texting Rally before receiving automated DMs. A contact selection alone is **not** messaging consent.
-3. Organizer texts, “Can Jordan take over setup? Maya can't make it.” Rally knows the sender's relevant event(s), resolves ambiguity or asks which event, checks obligations, and requests Jordan's consent.
-4. Jordan replies “yes.” Rally commits the change exactly once, notifies relevant participants, and records the decision.
-5. A weather change can later prompt Rally to **propose**, not silently enact, an event adjustment.
-6. The app (P1) reflects verified state; `STATUS` over iMessage gives the same answer. iMessage remains the default day-to-day interface.
+Details and evidence: [`docs/23-demo-readiness.md`](docs/23-demo-readiness.md). Demo script: [`docs/DEMO.md`](docs/DEMO.md).
 
-## Core product principles
+## The experience
 
-- **iMessage-first:** do not make everyday workflows require opening the app.
-- **Human-in-the-loop:** requests are *proposals* until the affected person and/or organizer approves.
-- **Never invent commitments:** no “confirmed” status without an actual accepted reply or an authorized update.
-- **Minimal context, minimal latency:** retrieve relevant state; don't send an entire address book or every message to Claude.
-- **A plan is live state:** track responsibilities, dependencies, availability, consent, and changes—not just an itinerary.
-- **Always distinguish actual delivery, proposed action, committed change, and pending response.**
+1. The organizer creates an event and tasks by texting Rally (or in the iOS app) and invites people.
+2. Each invitee opts in by texting `join <event name>` from their own phone. Choosing a contact is **not** messaging consent.
+3. The organizer texts "Can Yewon also join me on Setup?" Rally sends Yewon an offer and changes nothing yet.
+4. Yewon replies `YES Setup`. If it overlaps another commitment, Rally warns her and waits for `CONFIRM OVERLAP Setup`.
+5. Rally commits the change exactly once, notifies the people affected and records the decision. `STATUS` over iMessage and the iOS app show the same state.
 
-## Stack and deployment shape
+## Principles
 
-| Layer | Proposed implementation |
+- **iMessage-first:** everyday workflows never require the app.
+- **Human-in-the-loop:** requests are proposals until the affected person and/or organizer approves.
+- **Never invent commitments:** nothing is "confirmed" without an accepted reply or an authorized update.
+- **Minimal context:** each model call gets only the scoped state it needs, never the whole address book or other events.
+- **Distinguish** delivery, proposal, committed change and pending response.
+
+Core invariants: phone contact selection ≠ consent; LLM text ≠ authorization; proposed assignment ≠ confirmed assignment; an unverified event reference ≠ permission; a successful HTTP call ≠ user acceptance.
+
+## Stack
+
+| Layer | Implementation |
 |---|---|
-| iMessage | Photon Spectrum, preferably official `@spectrum-ts/convex` adapter if verified in the selected version |
-| Persisted state + scheduler | Convex functions/tables, auth-checked queries and mutations |
-| Language interpretation | Worker on this Mac invoking authenticated Claude or Codex CLI; runtime-validated JSON decisions |
-| Deterministic logic | TypeScript schemas, state machines, eligibility and reassignment scoring |
-| Companion app | SwiftUI; Convex Swift client or authenticated server endpoints |
-| Weather (stretch/high-priority) | Open-Meteo noncommercial API; saved snapshots and explicit trigger rules |
+| iMessage | Photon Spectrum (`@spectrum-ts/convex`) |
+| State, scheduler, outbox | Convex tables and auth-checked functions |
+| Language interpretation | Worker on an Apple Silicon Mac invoking the Claude or Codex CLI; output validated against Zod schemas |
+| Deterministic logic | TypeScript state machines, eligibility and reassignment rules |
+| Companion app | SwiftUI, Auth0, Convex Swift client |
 
-**Critical product constraints:** Photon Pro shared numbers are not a dedicated line and may not allow group chat management. Design an MVP around separate, opted-in 1:1 conversations. A Claude Code subscription is **not** unlimited model capacity and does **not** run Claude weights locally. The Mac worker is a single point of failure; known actions must continue without inference.
+**Constraints:** Photon Pro shared numbers are not dedicated lines and may not allow group chats, so the MVP uses separate opted-in 1:1 conversations. A Claude Code subscription is rate-limited and does not run model weights locally. The Mac worker is a single point of failure, so YES/NO, STATUS, JOIN and approvals work without inference.
 
-## First milestone: the vertical slice
-
-A **real** Photon message from a verified participant refers to an existing event; Rally identifies it, seeks a second participant's approval, processes that person's **actual** reply, changes the task assignment in Convex, and sends a confirmation. Duplicate webhooks and repeat replies do not duplicate the assignment or outbound notifications.
-
-**Definition of done:** all acceptance scenarios in [`docs/01-scope-and-acceptance.md`](docs/01-scope-and-acceptance.md) pass; the live scenario in [`docs/11-testing-and-demo.md`](docs/11-testing-and-demo.md) works without manually editing Convex data during the flow.
-
-## Read the documentation in this order
-
-1. [`AGENTS.md`](AGENTS.md) — coding-agent rules and start sequence.
-2. [`docs/00-product-vision.md`](docs/00-product-vision.md) — product semantics and judges' expectations.
-3. [`docs/01-scope-and-acceptance.md`](docs/01-scope-and-acceptance.md) — P0/P1/P2 boundaries and acceptance tests.
-4. [`docs/02-architecture.md`](docs/02-architecture.md) — architecture and ownership of writes.
-5. [`docs/03-data-model.md`](docs/03-data-model.md) — entities and invariants.
-6. [`docs/04-messaging-and-photon.md`](docs/04-messaging-and-photon.md), [`docs/05-agent-reasoning.md`](docs/05-agent-reasoning.md) — inbound/outbound and inference.
-7. [`docs/06-workflows.md`](docs/06-workflows.md) — behavior and state machines.
-8. [`docs/10-security-privacy.md`](docs/10-security-privacy.md) — trust boundaries, consent and abuse rules.
-9. [`docs/11-testing-and-demo.md`](docs/11-testing-and-demo.md) — exact tests and demo.
-10. [`docs/14-decisions-and-open-questions.md`](docs/14-decisions-and-open-questions.md) — ADRs and unverified provider behavior.
-
-Full index: [`docs/INDEX.md`](docs/INDEX.md).
-
-## Workspace
+## Repository layout
 
 ```text
-Rally/
-  README.md                 # Setup and product specification
-  AGENTS.md                 # Mandatory agent guidance
-  CLAUDE.md                 # Claude Code entrypoint
-  docs/                     # Design and acceptance criteria
-  prompts/                  # Agent kickoff prompts per lane/checkpoint (docs/17)
-  convex/                   # Messaging/domain functions, auth, reasoning queue and tests
-  packages/shared/          # Zod schemas, fakes, fixtures, deterministic planner
-  worker/                   # Local Claude/Codex adapters and polling loop
-  tests/contracts/          # Cross-lane function inventory checks
-  scripts/                  # Contract inventory command
-  .github/workflows/        # npm ci + npm run check on PRs to main
+convex/             Messaging, domain, auth, reasoning queue and tests
+packages/shared/    Zod schemas, fakes, fixtures, deterministic planner
+worker/             Claude/Codex adapters, polling loop, eval runner
+ios/Rally/          SwiftUI companion (see ios/Rally/README.md)
+tests/              Contract, integration and eval suites
+scripts/            Contract inventory and setup scripts
+prompts/            Agent kickoff prompts per lane/checkpoint
+docs/               Design, acceptance criteria, evidence (start at docs/INDEX.md)
 ```
 
-The P1 [`ios/Rally/`](ios/Rally/README.md) companion's account, phone-link, event/task, contact, approval and status integration is implemented and locally tested. Its additive backend contracts are deployed to development; the real Auth0/Photon/device M2/ST-15 acceptance flow remains incomplete.
+## Getting started
 
-## Local bootstrap checks
-
-Use Node 24 LTS (`.nvmrc`) or Node 26+, and npm 11+. Dependencies are pinned in `package-lock.json`. The first bootstrap run needs the human-run Convex initialization below to produce `_generated` before the full check can pass; later checkouts use the committed generated files.
+Requires Node 24 LTS (`.nvmrc`) or 26+, and npm 11+.
 
 ```sh
 npm ci
-npm run check
-npm run contracts:list
+npm run check            # typecheck + all tests
+npm run contracts:list   # inventory of the 46 registered Convex functions
+npm run demo:rehearse    # simulated end-to-end rehearsal
+npm run eval:fake        # scripted 29-case harness check
 ```
 
-`check` typechecks the root/Convex code and both workspaces, then runs contract, messaging, domain, planner and worker tests. Domain/messaging acceptance tests use explicit simulations; they do not prove real multi-phone coordination or live delivery.
+### Backend
 
-For the required first development deployment, a human runs this in the repository root, signs in, and selects/creates the Rally development project:
+A human runs `npx convex dev` once in the repo root, signs in and selects the Rally development project. This creates `.env.local` (keep it private) and `convex/_generated/` (committed). Afterwards `npm run convex:codegen` refreshes definitions and `npx convex dev --once` validates and deploys one update.
+
+Configure messaging with `npm run messaging:configure`, then point the Photon webhook at the deployment's `/spectrum/webhook`. See [`docs/19-messaging-evidence.md`](docs/19-messaging-evidence.md).
+
+### Worker
+
+Follow the [setup runbook](docs/12-deployment-and-operations.md#local-worker-implementation-and-setup).
 
 ```sh
-npx convex dev
+npm run worker:configure   # create or preserve the matching dev credential
+npm run worker             # checks model login and backend auth, then polls
+npm run worker:status      # sanitized heartbeat and queue aggregates
+npm run eval:live          # real inference on synthetic inputs; no backend writes or sends
 ```
 
-The CLI creates `.env.local` with `CONVEX_DEPLOYMENT`, generates `convex/_generated/`, and deploys the backend. Keep the generated files in version control. Keep `.env.local` private. Once configured, `npm run convex:codegen` refreshes generated definitions and `npx convex dev --once` validates/deploys one development update. Convex 1.46.0 code generation also requires deployment configuration.
+Real inference needs an explicitly selected, available model (`RALLY_PROVIDER`, `RALLY_MODEL`). `.env.example` contains no usable credentials. Keep the Mac awake while the worker runs.
 
-For the worker, follow the [setup runbook](docs/12-deployment-and-operations.md#local-worker-implementation-and-setup). `npm run worker:configure` preserves or privately creates the matching development credential; `npm run worker` checks model login and backend authentication before polling. `npm run worker:status` prints sanitized heartbeat/queue aggregates using the operator's Convex CLI login. `npm run eval:fake` checks 23 scripted cases; `npm run eval:live` measures real inference on synthetic inputs without backend writes or sends. Real inference requires an explicitly selected available model. `.env.example` contains no usable credentials.
+### Event setup
 
-For P0, use [phone-only event setup](docs/12-deployment-and-operations.md#phone-only-event-setup): send `CREATE EVENT` to your provisioned Rally conversation for instructions, then create a draft, JOIN, and CONFIRM. Tasks, selected-contact invitations, and organizer approvals also work through deterministic iMessage commands. No Auth0 login or token copying is required.
+- **Phone only (P0):** text `create an event` to your Rally conversation, then `add a task` and `invite someone`. Every participant must send their own `join`. See [phone-only setup](docs/12-deployment-and-operations.md#phone-only-event-setup).
+- **Authenticated CLI (optional):** `npm run auth:login`, then `npm run domain:setup`. Add `http://127.0.0.1:8765/callback` to the Auth0 Native app's Allowed Callback URLs, keeping the iOS callback. See [the walkthrough](docs/20-domain-evidence.md#auth0-and-manual-event-setup).
 
-For optional authenticated CLI event setup, `npm run auth:login` opens Rally's existing Auth0 Native application login, validates its returned ID token, and saves it in private `.env.local`. Append `http://127.0.0.1:8765/callback` to that application's Allowed Callback URLs, preserving the iOS callback. Then use `npm run domain:setup`; [the walkthrough](docs/20-domain-evidence.md#auth0-and-manual-event-setup) includes real phone proof and participant JOIN. An Auth0 dashboard login or Convex CLI login alone is not an app session.
+## Documentation
 
-Prompt 0 is complete only after local checks pass, the contract inventory is verified, and the first human-run development schema deployment succeeds. See [bootstrap contract and evidence](docs/18-bootstrap-contract.md) for decisions and current verification status.
+Start with [`AGENTS.md`](AGENTS.md) (coding-agent rules) and the full map in [`docs/INDEX.md`](docs/INDEX.md). Most useful for newcomers:
 
-## Next implementation steps
+| Topic | File |
+|---|---|
+| Product vision and users | [`docs/00-product-vision.md`](docs/00-product-vision.md) |
+| Scope and acceptance tests | [`docs/01-scope-and-acceptance.md`](docs/01-scope-and-acceptance.md) |
+| Architecture and write ownership | [`docs/02-architecture.md`](docs/02-architecture.md) |
+| Data model | [`docs/03-data-model.md`](docs/03-data-model.md) |
+| Messaging, agent reasoning, workflows | [`docs/04-messaging-and-photon.md`](docs/04-messaging-and-photon.md), [`docs/05-agent-reasoning.md`](docs/05-agent-reasoning.md), [`docs/06-workflows.md`](docs/06-workflows.md) |
+| Security and privacy | [`docs/10-security-privacy.md`](docs/10-security-privacy.md) |
+| Testing and demo | [`docs/11-testing-and-demo.md`](docs/11-testing-and-demo.md), [`docs/DEMO.md`](docs/DEMO.md) |
+| Decisions and open questions | [`docs/14-decisions-and-open-questions.md`](docs/14-decisions-and-open-questions.md) |
 
-1. Join the existing Convex team and authenticate locally; confirm the development deployment used for Photon. Run `npm run messaging:configure` to check server configuration and create the server-only messaging key if absent.
-2. Deploy with `npx convex dev --once`; configure the native Photon webhook at that deployment's `/spectrum/webhook`. Verify a real inbound and outbound DM before building AI. See [the runbook](docs/19-messaging-evidence.md).
-3. Use [phone-only event setup](docs/12-deployment-and-operations.md#phone-only-event-setup) to create a draft, JOIN and CONFIRM, add timed tasks, and prepare invitations. Every recipient must send their own JOIN; setup never invents consent. Authenticated app/CLI setup remains an alternative.
-4. Run `prompts/m1-messaging-domain.md`: verify genuine event JOIN/STATUS and a second participant's real YES committing one reassignment. The deterministic protocol already passes under `FakeMessagingAdapter`.
-5. The integrated development backend and this Mac's Codex worker are configured. Complete phone event setup and actual opted-in JOIN before testing free-text requests and participant acceptance. Check `npm run worker:status`; the Mac must remain awake.
-6. Verify the existing SwiftUI companion on a real device. Weather and other stretch features are cut from the current demo scope; see [the freeze plan](docs/23-demo-readiness.md#m3-scope-decision).
+Source-of-truth order: explicit user direction > current tests and working code > current ADRs > proposed docs > external examples. Provider behavior and SDK signatures must be checked against pinned versions, not copied from pseudo-interfaces in the docs. Sources and last-check notes are in [`docs/15-sources.md`](docs/15-sources.md).
 
-Do not copy pseudo-interfaces from these docs directly as if they are real SDK signatures; external APIs must be checked against pinned versions.
-
-## Source of truth & decision tracking
-
-- This is a **proposed implementation**, based on user-provided project requirements and the linked provider docs.
-- Unknown provider behavior and outstanding decisions live in [`docs/14-decisions-and-open-questions.md`](docs/14-decisions-and-open-questions.md).
-- External reference links and last-check notes live in [`docs/15-sources.md`](docs/15-sources.md).
-- No production credentials, private contacts, or user conversations should be committed.
+Never commit production credentials, private contacts or user conversations.
