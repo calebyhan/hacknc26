@@ -70,6 +70,34 @@ describe("authenticated leased reasoning queue (simulation)", () => {
     expect(await t.mutation(api.reasoningJobs.claim, credentials)).toBeNull();
     expect(await t.run((ctx) => ctx.db.query("outboundMessages").collect())).toHaveLength(0);
   });
+  it("supplies joined participant names without leaking invited, unconsented or unrelated people", async () => {
+    const { t, enqueueArgs, ids } = await fixture();
+    const joinedId = await t.run(async ctx => {
+      const otherEvent = await ctx.db.insert("events", { title: "Other event", kind: "event", startsAt: Date.now() + 86_400_000, timezone: "UTC", ownerId: ids.userId, status: "scheduled", version: 1 });
+      let joinedId;
+      for (const [name, state, eventId, proof] of [
+        ["Caleb", "enrolled", ids.eventId, "valid"],
+        ["Invited private contact", "invited", ids.eventId, "valid"],
+        ["Unconsented app member", "enrolled", ids.eventId, "missing"],
+        ["Wrong-phone proof", "enrolled", ids.eventId, "wrong-phone"],
+        ["Foreign event member", "enrolled", otherEvent, "valid"],
+      ] as const) {
+        const phone = `+1555000010${proof === "valid" ? name.length % 10 : proof === "missing" ? 8 : 9}`;
+        const userId = await ctx.db.insert("users", { displayName: name, verifiedPhoneE164: phone, createdAt: Date.now(), messagingState: "active", settings: {} });
+        const messageId = await ctx.db.insert("inboundMessages", { provider: "spectrum", providerMessageId: `fixture-join-${name}`, senderPhone: proof === "wrong-phone" ? "+15550000999" : phone, receivedAt: Date.now(), contentType: "text/plain", processingState: "processed" });
+        await ctx.db.insert("memberships", { eventId, userId, role: "member", state, notificationsEnabled: true, ...(proof === "missing" ? {} : { consentAt: Date.now(), consentSourceMessageId: messageId }) });
+        if (name === "Caleb") joinedId = userId;
+      }
+      return joinedId!;
+    });
+    await t.mutation(internal.reasoningJobs.enqueue, enqueueArgs);
+    const claimed = (await t.mutation(api.reasoningJobs.claim, credentials))!;
+    expect(JSON.parse(claimed.packetJson)).toMatchObject({ relevantParticipants: [
+      { userId: ids.userId, displayName: "Alex", role: "organizer" },
+      { userId: joinedId, displayName: "Caleb", role: "member" },
+    ] });
+    for (const secret of ["+1555", "Invited private contact", "Unconsented app member", "Wrong-phone proof", "Foreign event member", "settings", "consentSourceMessageId"]) expect(claimed.packetJson).not.toContain(secret);
+  });
   it("rejects unselected scope and stale versions during enqueue", async () => {
     const { t, ids, enqueueArgs } = await fixture();
     await expect(t.mutation(internal.reasoningJobs.enqueue, { ...enqueueArgs, contextVersion: 2 })).rejects.toThrow();

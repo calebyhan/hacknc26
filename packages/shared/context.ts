@@ -28,6 +28,8 @@ export const ContextBuildInputSchema = z.strictObject({
   candidateEvents: z.array(EventSchema),
   relevantTasks: z.array(TaskSchema),
   commitments: z.array(CommitmentSchema),
+  participants: z.array(UserSchema).optional(),
+  memberships: z.array(MembershipSchema).optional(),
   pendingProposalsForSender: z.array(ContextPendingProposalSchema),
   recentEventFocusId: IdentifierSchema.nullable(),
 });
@@ -78,6 +80,10 @@ export function buildContextPacket(raw: ContextBuildInput): ContextPacket {
       id: task.id, name: task.title, status: task.status, version: task.version,
       activeAssigneeIds: [...new Set(input.commitments.filter((c) => c.eventId === selected.id && c.taskId === task.id && c.state === "active").map((c) => c.participantId))],
     })) : [],
+    relevantParticipants: selected ? (input.memberships ?? []).filter(m => m.eventId === selected.id && m.state === "enrolled").flatMap(m => {
+      const user = input.participants?.find(p => p.id === m.userId);
+      return user ? [{ userId: user.id, displayName: user.displayName, role: m.role }] : [];
+    }) : [],
     pendingProposalsForSender: input.pendingProposalsForSender.filter((p) => p.targetUserId === input.sender.id && allowed.has(p.eventId)),
     incomingText: input.incomingText,
     eventVersion: selected?.version ?? null,

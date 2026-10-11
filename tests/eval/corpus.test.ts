@@ -4,7 +4,12 @@ import { AgentDecisionSchema } from "../../packages/shared/agentDecision";
 import { evalCorpus, gradeDecision } from "./corpus";
 
 describe("20-case evaluation harness (scripted simulation, no accuracy claim)", () => {
-  it("covers exactly 20 distinct utterances", () => { expect(evalCorpus).toHaveLength(20); expect(new Set(evalCorpus.map((c) => c.packet.incomingText)).size).toBe(20); });
+  it("covers the original 20 utterances plus three named-participant regressions", () => { expect(evalCorpus).toHaveLength(23); expect(new Set(evalCorpus.map((c) => c.packet.incomingText)).size).toBe(23); });
+  it("rejects an assignment to the wrong opaque participant or task", () => {
+    const testCase = evalCorpus.find(c => c.id === "21")!;
+    expect(gradeDecision(testCase, { ...testCase.scriptedDecision, actions: [{ type: "PROPOSE_ASSIGNMENT", taskRef: "setup", toParticipantRef: "fixture_p_812" }] })).toBe(false);
+    expect(gradeDecision(testCase, { ...testCase.scriptedDecision, actions: [{ type: "PROPOSE_ASSIGNMENT", taskRef: "unknown", toParticipantRef: "Caleb" }] })).toBe(false);
+  });
   it.each(evalCorpus)("$id: validates and grades its scripted $expected", async (testCase) => {
     const provider = new FakeInferenceProvider({ [testCase.packet.incomingText]: testCase.scriptedDecision });
     expect(gradeDecision(testCase, await provider.decide(testCase.packet))).toBe(true);

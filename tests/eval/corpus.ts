@@ -11,13 +11,24 @@ function make(id: string, text: string, actions: AgentAction[], options: { role?
   // Existing open item for the volunteering cases. A new item with no stated
   // time window would correctly require clarification in the actual Domain.
   const speakers = { ...seedFixture.tasks[0]!, id: "fixture_task_speakers", title: "speakers", status: "unassigned" as const };
-  const packet = buildContextPacket({ messageId: `fixture_eval_${id}`, sender, senderRole: options.role ?? "organizer", incomingText: text, selectedEvent: selected, candidateEvents: options.scope === "none" ? [] : seedFixture.events, relevantTasks: [...seedFixture.tasks, speakers], commitments: seedFixture.commitments, pendingProposalsForSender: [], recentEventFocusId: null });
+  const packet = buildContextPacket({ messageId: `fixture_eval_${id}`, sender, senderRole: options.role ?? "organizer", incomingText: text, selectedEvent: selected, candidateEvents: options.scope === "none" ? [] : seedFixture.events, relevantTasks: [...seedFixture.tasks, speakers], commitments: seedFixture.commitments, participants: seedFixture.users, memberships: seedFixture.memberships, pendingProposalsForSender: [], recentEventFocusId: null });
   const clarify = actions.every((a) => a.type === "ASK_CLARIFICATION");
   return { id, packet, expected: clarify ? "clarify" : options.reject ? "reject" : "correct proposal", scriptedDecision: { schemaVersion: 1, eventCandidateId: selected?.id ?? null, confidenceClass: clarify ? "ambiguous" : options.reject ? "unsupported" : "clear", needsClarification: clarify, clarificationQuestion: clarify && actions[0]?.type === "ASK_CLARIFICATION" ? actions[0].question : null, actions, responseStyle: "concise", reasonCodes: ["FIXTURE_ONLY"] } };
 }
 const ask: AgentAction[] = [{ type: "ASK_CLARIFICATION", question: "Please clarify the event, participant or time." }];
 const no: AgentAction[] = [{ type: "NO_ACTION", reason: "Unsupported or handled without inference" }];
 const window = { startsAt: "2026-10-17T13:00:00Z", endsAt: "2026-10-17T14:00:00Z" };
+
+function namedAssignmentCase(id: string, text: string, duplicate = false, unknown = false): EvalCase {
+  const testCase = make(id, text, duplicate || unknown ? ask : [{ type: "PROPOSE_ASSIGNMENT", taskRef: "setup", toParticipantRef: "Caleb" }]);
+  // Opaque fixture IDs ensure the model cannot infer names from their spelling.
+  return { ...testCase, packet: { ...testCase.packet,
+    sender: { userId: "fixture_p_812", role: "organizer" },
+    candidateEvents: [{ ...testCase.packet.candidateEvents[0]!, id: "fixture_e_627" }],
+    relevantTasks: [{ id: "fixture_t_496", name: "setup", status: "unassigned", version: 1, activeAssigneeIds: [] }],
+    relevantParticipants: [{ userId: "fixture_p_812", displayName: "Organizer", role: "organizer" }, { userId: "fixture_p_983", displayName: "Caleb", role: "member" }, ...(duplicate ? [{ userId: "fixture_p_254", displayName: "Caleb", role: "member" as const }] : [])],
+  }, scriptedDecision: { ...testCase.scriptedDecision, eventCandidateId: "fixture_e_627" } };
+}
 
 /** Synthetic utterances only; scripted results are harness fixtures, not accuracy. */
 export const evalCorpus: EvalCase[] = [
@@ -41,11 +52,18 @@ export const evalCorpus: EvalCase[] = [
   make("18", "Draft a Picnic on October 17 2026 at 14:00 UTC in UTC timezone", [{ type: "CREATE_EVENT_DRAFT", title: "Picnic", startsAt: "2026-10-17T14:00:00Z", timezone: "UTC" }], { scope: "none" }),
   make("19", "Yeah sure, because I definitely have all the time in the world", ask),
   make("20", "For Charity 5K propose moving setup to October 17 13:00–14:00 UTC", [{ type: "PROPOSE_TASK_CHANGE", taskRef: "setup", field: "time", newValue: window }]),
+  namedAssignmentCase("21", "Can Caleb cover setup for event fixture_e_627?"),
+  namedAssignmentCase("22", "Please ask Caleb to cover setup for event fixture_e_627", true),
+  namedAssignmentCase("23", "Can Missing cover setup for event fixture_e_627?", false, true),
 ];
 
 export function gradeDecision(testCase: EvalCase, decision: AgentDecision): boolean {
   if (decision.eventCandidateId !== testCase.scriptedDecision.eventCandidateId) return false;
   if (testCase.expected === "clarify") return decision.confidenceClass === "ambiguous" && decision.actions.every((a) => a.type === "ASK_CLARIFICATION");
   if (testCase.expected === "reject") return decision.actions.every((a) => a.type === "NO_ACTION");
+  if (testCase.id === "21") {
+    const action = decision.actions[0];
+    return decision.actions.length === 1 && !decision.needsClarification && action?.type === "PROPOSE_ASSIGNMENT" && ["setup", "fixture_t_496"].includes(action.taskRef) && ["Caleb", "fixture_p_983"].includes(action.toParticipantRef);
+  }
   return !decision.needsClarification && decision.actions.map((a) => a.type).sort().join(",") === testCase.scriptedDecision.actions.map((a) => a.type).sort().join(",");
 }

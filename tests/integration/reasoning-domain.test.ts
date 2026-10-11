@@ -23,7 +23,8 @@ describe("signed DM -> leased worker decision -> actual Domain (simulated provid
   }
   it("creates one pending offer, commits only on target YES, and ignores duplicate worker completion", async () => {
     const h = await harness();
-    const { job, args } = await request(h, "Can Jordan cover setup?", [{ type: "PROPOSE_REASSIGNMENT", taskRef: "setup", fromParticipantRef: "Maya", toParticipantRef: "Jordan" }]);
+    const { job, args } = await request(h, "Can Jordan cover setup?", [{ type: "PROPOSE_REASSIGNMENT", taskRef: h.ids.task, fromParticipantRef: h.ids.maya, toParticipantRef: h.ids.jordan }]);
+    expect(JSON.parse(job.packetJson)).toMatchObject({ relevantParticipants: expect.arrayContaining([{ userId: h.ids.jordan, displayName: "Jordan", role: "member" }]) });
     expect(await h.t.run(ctx => ctx.db.get(job.jobId))).toMatchObject({ status: "completed" });
     expect((await h.active()).map(c => c.participantId)).toEqual([h.ids.maya]);
     const offers = await h.t.run(ctx => ctx.db.query("proposals").collect());

@@ -56,7 +56,17 @@ export async function readJobContext(ctx: QueryCtx, job: Pick<Doc<"reasoningJobs
   const tasks = selected ? eventTasks.filter((task) => task.eventId === selected._id) : [];
   if (new Set(job.taskVersions.map((item) => item.taskId)).size !== job.taskVersions.length || tasks.length !== job.taskVersions.length || job.taskVersions.some((item) => !tasks.some((task) => task._id === item.taskId && task.version === item.version))) throw new Error("STALE_TASKS");
   const commitments = selected ? await ctx.db.query("commitments").withIndex("by_event", (q) => q.eq("eventId", selected._id)).collect() : [];
-  const packet = buildContextPacket({ messageId: message._id, sender: plain(user), senderRole: membership?.role ?? "member", incomingText: envelope.text, selectedEvent: selected ? plain(selected) : null, candidateEvents: events.filter((event) => resolution.candidateIds.includes(event._id)).map(plain), relevantTasks: tasks.map(plain), commitments: commitments.map(plain), pendingProposalsForSender: pending, recentEventFocusId: focus && focus.expiresAt > Date.now() ? focus.lastEventId ?? null : null });
+  const participants: Doc<"users">[] = [], participantMemberships: Doc<"memberships">[] = [];
+  if (selected) {
+    const members = await ctx.db.query("memberships").withIndex("by_event", q => q.eq("eventId", selected._id)).collect();
+    for (const member of members) {
+      if (member.state !== "enrolled" || member.consentAt === undefined || !member.consentSourceMessageId) continue;
+      const participant = await ctx.db.get(member.userId), consent = await ctx.db.get(member.consentSourceMessageId);
+      if (!participant?.verifiedPhoneE164 || !consent || consent.provider !== "spectrum" || consent.senderPhone !== participant.verifiedPhoneE164) continue;
+      participants.push(participant); participantMemberships.push(member);
+    }
+  }
+  const packet = buildContextPacket({ messageId: message._id, sender: plain(user), senderRole: membership?.role ?? "member", incomingText: envelope.text, selectedEvent: selected ? plain(selected) : null, candidateEvents: events.filter((event) => resolution.candidateIds.includes(event._id)).map(plain), relevantTasks: tasks.map(plain), commitments: commitments.map(plain), participants: participants.map(plain), memberships: participantMemberships.map(plain), pendingProposalsForSender: pending, recentEventFocusId: focus && focus.expiresAt > Date.now() ? focus.lastEventId ?? null : null });
   return { packet, user, message, membership };
 }
 

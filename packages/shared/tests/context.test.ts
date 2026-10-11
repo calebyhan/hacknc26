@@ -55,4 +55,19 @@ describe("compact context packet", () => {
     const json = JSON.stringify(build());
     for (const secret of ["+1555", "fixture|alex", "contact_taylor", "windowStart", "settings", ids.hackSetup]) expect(json).not.toContain(secret);
   });
+  it("includes names only for enrolled members of the selected event", () => {
+    const raw = { messageId: "fixture_message", sender: seedFixture.users[0]!, senderRole: "organizer" as const, incomingText: "Can Jordan cover setup?", selectedEvent: seedFixture.events[0]!, candidateEvents: seedFixture.events, relevantTasks: seedFixture.tasks, commitments: seedFixture.commitments, pendingProposalsForSender: [], recentEventFocusId: null, participants: seedFixture.users, memberships: seedFixture.memberships };
+    const packet = buildContextPacket(raw);
+    expect(packet).toMatchObject({ relevantParticipants: [
+      { userId: ids.alex, displayName: "Alex", role: "organizer" },
+      { userId: ids.maya, displayName: "Maya", role: "member" },
+      { userId: ids.jordan, displayName: "Jordan", role: "member" },
+    ] });
+    expect(JSON.stringify(packet)).not.toContain("Taylor");
+    expect(buildContextPacket({ ...raw, selectedEvent: null })).toMatchObject({ relevantParticipants: [] });
+    expect(buildContextPacket({ ...raw, memberships: seedFixture.memberships.map(m => m.userId === ids.jordan && m.eventId === ids.charity5k ? { ...m, state: "left" as const } : m) })).toMatchObject({ relevantParticipants: [
+      { userId: ids.alex }, { userId: ids.maya },
+    ] });
+    for (const secret of ["+1555", "fixture|alex", "settings", "consentSourceMessageId"]) expect(JSON.stringify(packet)).not.toContain(secret);
+  });
 });
