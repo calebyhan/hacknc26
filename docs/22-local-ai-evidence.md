@@ -1,10 +1,12 @@
 # Local AI implementation and development evidence
 
-Checkpoint: October 10, 2026, EDT. Branch: `lane-c/local-ai`, incorporating the latest fetched `origin/main` at `b73fba8`. No branch push or production deployment was performed.
+**Current status:** C is now integrated with A/B/D on `main`. The [October 10 demo handoff](23-demo-readiness.md) records the latest 23-case evaluations, Codex 0.152.1/0.160.1 support, combined rehearsal and remaining live gates. The dated branch checkpoints and earlier evaluation runs below are preserved as historical evidence.
+
+Initial checkpoint: October 10, 2026, EDT. Branch: `lane-c/local-ai`, incorporating the then-latest fetched `origin/main` at `b73fba8`. No branch push or production deployment was performed at that checkpoint.
 
 **Goal:** create an event through iMessage, then route an enrolled person's free-text request to this Mac's worker for a validated event-scoped suggestion. A cross-person offer stays pending until the correct target accepts. Member suggestions require organizer approval first.
 
-The integrated backend is deployed to existing `calebhantech:rally:dev/caleb-han`, `calm-jackal-984`. This Mac's Codex worker is online with real subscription inference verified on synthetic inputs. **Actual group coordination remains unverified:** real phone setup has now created drafts and organizer JOIN consent, but no actual free-text worker job, friend enrollment or target acceptance has been verified.
+At that checkpoint, the branch backend was deployed to existing `calebhantech:rally:dev/caleb-han`, `calm-jackal-984`, and this Mac's Codex worker was online with real subscription inference verified on synthetic inputs. Real phone setup had created drafts and organizer JOIN consent, but no actual free-text worker job, friend enrollment or target acceptance had yet been verified. Later observations below and in [messaging evidence](19-messaging-evidence.md) supersede those initial limits; actual group acceptance/reassignment remains unverified.
 
 ## Tasks and changed files
 

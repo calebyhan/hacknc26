@@ -2,6 +2,8 @@
 
 **Product mode:** proposed 24-hour hackathon MVP. These are target criteria; mark them passing only after tests actually run.
 
+For the October 10 integrated implementation, local rehearsal evidence and remaining live gates, see [the demo handoff](23-demo-readiness.md). The acceptance checkboxes below are unchanged; simulation results do not close live criteria.
+
 ## P0 — ship or don't demo
 
 - [ ] **R1: Spectrum integration.** A user-initiated real iMessage reaches Rally, is durably stored with provider message ID, and receives a real reply via Spectrum. Repeat delivery produces no duplicate side effects.

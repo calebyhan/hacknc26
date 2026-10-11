@@ -1,0 +1,92 @@
+{
+  "simulation": true,
+  "command": "npm run demo:rehearse",
+  "liveAcceptance": false,
+  "records": {
+    "RALLY_SIMULATED_REHEARSAL": {
+      "simulation": true,
+      "inbound": "signed synthetic Photon envelopes",
+      "inference": "scripted FakeInferenceProvider through processOneJob",
+      "delivery": "FakeMessagingAdapter; no receipt",
+      "app": "authorized backend queries; no live SwiftUI session",
+      "stages": [
+        {
+          "stage": "phone setup and canonical app link",
+          "eventVersion": 2,
+          "taskVersion": 1,
+          "state": "unassigned",
+          "active": [],
+          "appConfirmed": 0
+        },
+        {
+          "stage": "initial offer remains pending",
+          "eventVersion": 2,
+          "taskVersion": 1,
+          "state": "unassigned",
+          "active": [],
+          "appConfirmed": 0
+        },
+        {
+          "stage": "initial target accepts",
+          "eventVersion": 2,
+          "taskVersion": 2,
+          "state": "confirmed",
+          "active": [
+            "maya"
+          ],
+          "appConfirmed": 1
+        },
+        {
+          "stage": "replacement requested, original commitment retained",
+          "eventVersion": 2,
+          "taskVersion": 2,
+          "state": "confirmed",
+          "active": [
+            "maya"
+          ],
+          "appConfirmed": 1
+        },
+        {
+          "stage": "worker stopped: YES and replay commit once",
+          "eventVersion": 2,
+          "taskVersion": 3,
+          "state": "confirmed",
+          "active": [
+            "jordan"
+          ],
+          "appConfirmed": 1
+        },
+        {
+          "stage": "decline preserves accepted replacement",
+          "eventVersion": 2,
+          "taskVersion": 3,
+          "state": "confirmed",
+          "active": [
+            "jordan"
+          ],
+          "appConfirmed": 1
+        },
+        {
+          "stage": "durable outage fallback leaves commitment unchanged",
+          "eventVersion": 2,
+          "taskVersion": 3,
+          "state": "confirmed",
+          "active": [
+            "jordan"
+          ],
+          "appConfirmed": 1
+        }
+      ],
+      "packetCount": 3,
+      "runtimeLogCount": 0
+    },
+    "RALLY_SIMULATED_PRIVACY": {
+      "simulation": true,
+      "ambiguity": "no inference or mutation",
+      "crossEventDecision": "rejected",
+      "appScope": "enforced",
+      "capturedPackets": 2,
+      "privateCanariesLeaked": false
+    }
+  }
+}

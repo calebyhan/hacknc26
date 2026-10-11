@@ -4,9 +4,9 @@ import type { InferenceProvider } from "../../packages/shared/adapters.ts";
 import { InferenceError, runCommand, type ClaudeRunner } from "./claude.ts";
 import { systemPrompt } from "./prompt.ts";
 
-// Inspected against installed 0.152.1. Fail closed when the CLI changes rather
-// than silently assuming flags still disable the same capabilities.
-const supportedVersion = "codex-cli 0.152.1";
+// Inspected 0.152.1 and 0.160.1; the opt-in local Responses mock verifies no
+// tool definitions are registered. Unknown CLI versions still fail closed.
+const supportedVersions = new Set(["codex-cli 0.152.1", "codex-cli 0.160.1"]);
 const disabledHostNotice = "Code Mode is unavailable because code-mode host is disabled. Code mode will fail closed; enable `features.code_mode_host` and install `codex-code-mode-host`.";
 const disabledFeatures = [
   "shell_tool", "shell_snapshot", "unified_exec", "apps", "enable_mcp_apps", "plugins", "remote_plugin", "hooks", "memories", "multi_agent", "multi_agent_v2",
@@ -33,7 +33,7 @@ export class CodexInferenceProvider implements InferenceProvider {
   async checkReady(): Promise<void> {
     try {
       const version = await this.runner({ args: ["--version"], stdin: "", environment: this.environment, signal: AbortSignal.timeout(5_000) });
-      if (version.exitCode !== 0 || version.stdout.trim() !== supportedVersion) throw new Error();
+      if (version.exitCode !== 0 || !supportedVersions.has(version.stdout.trim())) throw new Error();
       // The CLI reports this status on stderr; never expose its raw output.
       const login = await this.runner({ args: ["login", "status"], stdin: "", environment: this.environment, captureStderr: true, signal: AbortSignal.timeout(5_000) });
       if (login.exitCode !== 0 || !login.stdout.split(/\r?\n/).includes("Logged in using ChatGPT")) throw new Error();

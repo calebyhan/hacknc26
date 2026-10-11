@@ -1,6 +1,6 @@
 # Rally
 
-**Status:** The A/B domain and messaging backend, Lane C phone setup/AI worker, and Lane D iOS continuation are being integrated on `main`. A user-provided live DM transcript shows event setup, JOIN, enrolled STATUS and an offer that expired after about ten minutes. **Actual target acceptance/reassignment and live app parity remain unverified; M1/M2 are not yet complete.** See [messaging evidence](docs/19-messaging-evidence.md), [AI evidence](docs/22-local-ai-evidence.md) and [iOS contracts](docs/22-ios-app-contracts.md).
+**Status:** A/B messaging/domain, C phone setup/AI worker and D iOS integration are combined on `main`. **405 tests pass; `npm run demo:rehearse` runs the complete simulated coordination flow without phones or credentials.** Real Codex evaluation passes 23 synthetic cases. Offers show reply deadlines, stale queued requests are suppressed, and STATUS distinguishes duplicate event names. User-observed live setup/JOIN/STATUS/offer expiry is recorded, but **actual target acceptance/reassignment and live app parity remain unverified; M1/M2 and the final M3 gate are open.** See [demo readiness and remaining checks](docs/23-demo-readiness.md).
 
 **Primary experience:** iMessage via Photon Spectrum.  
 **Companion experience:** lightweight SwiftUI iOS app for project/event setup, explicit contact selection, membership, and live status.  
@@ -78,7 +78,7 @@ Rally/
   .github/workflows/        # npm ci + npm run check on PRs to main
 ```
 
-The P1 [`ios/Rally/`](ios/Rally/README.md) companion's account, phone-link, event/task, contact, approval and status integration is implemented and locally tested. Deployment of its additive contracts and the real Auth0/Photon/device M2/ST-15 acceptance flow remain incomplete.
+The P1 [`ios/Rally/`](ios/Rally/README.md) companion's account, phone-link, event/task, contact, approval and status integration is implemented and locally tested. Its additive backend contracts are deployed to development; the real Auth0/Photon/device M2/ST-15 acceptance flow remains incomplete.
 
 ## Local bootstrap checks
 
@@ -115,7 +115,7 @@ Prompt 0 is complete only after local checks pass, the contract inventory is ver
 3. Use [phone-only event setup](docs/12-deployment-and-operations.md#phone-only-event-setup) to create a draft, JOIN and CONFIRM, add timed tasks, and prepare invitations. Every recipient must send their own JOIN; setup never invents consent. Authenticated app/CLI setup remains an alternative.
 4. Run `prompts/m1-messaging-domain.md`: verify genuine event JOIN/STATUS and a second participant's real YES committing one reassignment. The deterministic protocol already passes under `FakeMessagingAdapter`.
 5. The integrated development backend and this Mac's Codex worker are configured. Complete phone event setup and actual opted-in JOIN before testing free-text requests and participant acceptance. Check `npm run worker:status`; the Mac must remain awake.
-6. Finish the existing SwiftUI companion's live integration; add weather only after core flow is robust.
+6. Verify the existing SwiftUI companion on a real device. Weather and other stretch features are cut from the current demo scope; see [the freeze plan](docs/23-demo-readiness.md#m3-scope-decision).
 
 Do not copy pseudo-interfaces from these docs directly as if they are real SDK signatures; external APIs must be checked against pinned versions.
 

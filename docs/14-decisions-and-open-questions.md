@@ -2,6 +2,8 @@
 
 **Decision states:** `DECIDED` means user/team direction; `PROPOSED` means recommended but unimplemented; `VERIFY` means provider/account behavior must be tested. **Do not silently turn VERIFY into fact.**
 
+Current integrated-source status, runtime/evaluation evidence and M3 scope cuts are in [the October 10 demo handoff](23-demo-readiness.md). Earlier branch-specific checkpoints below remain historical; live M1/M2 and app/device acceptance are still open.
+
 ## Decisions
 
 | ID | State | Decision / rationale |

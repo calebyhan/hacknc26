@@ -1,0 +1,30 @@
+{
+  "deployment": "calm-jackal-984",
+  "environment": "development",
+  "checkedAt": "2026-10-11T02:35:30.810Z",
+  "deploymentCommand": "npx convex dev --once --typecheck enable --tail-logs disable",
+  "deploymentSucceeded": true,
+  "cryptoReady": true,
+  "missingConfiguration": [],
+  "syntheticDenialChecks": {
+    "anonymousAccountQuery": "AUTHENTICATION_REQUIRED",
+    "invalidWorkerToken": "WORKER_UNAUTHORIZED",
+    "forgedWebhookHttpStatus": 401
+  },
+  "worker": {
+    "online": true,
+    "heartbeatAgeSeconds": 27,
+    "model": "gpt-5.6-luna",
+    "errorCategory": null
+  },
+  "sampledJobs": {
+    "completed": 2,
+    "queued": 0,
+    "claimed": 0,
+    "failed": 0,
+    "expired": 0,
+    "possiblyTruncated": false
+  },
+  "liveAcceptance": false,
+  "limits": "Sampled health and synthetic denial probes only. No live participant consent, acceptance, delivery or device parity is established by this check. No worker restart, credential rotation or participant-data seeding."
+}

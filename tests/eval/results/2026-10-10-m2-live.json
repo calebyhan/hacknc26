@@ -1,0 +1,237 @@
+{
+  "startedAt": "2026-10-10T22:27:54.562209-04:00",
+  "finishedAt": "2026-10-10T22:29:43.183632-04:00",
+  "command": "RALLY_PROVIDER=codex RALLY_MODEL=gpt-5.6-luna npm run eval:live",
+  "inputType": "synthetic fixtures only",
+  "inferenceType": "live subscription model; no Convex writes or Photon sends",
+  "cliVersion": "codex-cli 0.160.1",
+  "model": "gpt-5.6-luna",
+  "modelCatalogueChecked": true,
+  "exitCode": 0,
+  "scriptedHarness": {
+    "command": "npm run eval:fake",
+    "passed": 23,
+    "total": 23,
+    "note": "Scripted fixture validation, not model accuracy"
+  },
+  "result": {
+    "simulation": false,
+    "provider": "codex",
+    "note": "Synthetic inputs with real inference; grade checks scope and action types, not Domain execution",
+    "passed": 23,
+    "total": 23,
+    "p50Ms": 4365,
+    "p95Ms": 6590,
+    "results": [
+      {
+        "id": "01",
+        "expected": "correct proposal",
+        "passed": true,
+        "latencyMs": 4399,
+        "actionTypes": [
+          "REPORT_UNAVAILABILITY",
+          "PROPOSE_ASSIGNMENT"
+        ]
+      },
+      {
+        "id": "02",
+        "expected": "correct proposal",
+        "passed": true,
+        "latencyMs": 3976,
+        "actionTypes": [
+          "REPORT_UNAVAILABILITY"
+        ]
+      },
+      {
+        "id": "03",
+        "expected": "clarify",
+        "passed": true,
+        "latencyMs": 4206,
+        "actionTypes": [
+          "ASK_CLARIFICATION"
+        ]
+      },
+      {
+        "id": "04",
+        "expected": "correct proposal",
+        "passed": true,
+        "latencyMs": 4065,
+        "actionTypes": [
+          "REPORT_UNAVAILABILITY"
+        ]
+      },
+      {
+        "id": "05",
+        "expected": "correct proposal",
+        "passed": true,
+        "latencyMs": 3874,
+        "actionTypes": [
+          "RECORD_SELF_COMMITMENT"
+        ]
+      },
+      {
+        "id": "06",
+        "expected": "clarify",
+        "passed": true,
+        "latencyMs": 4109,
+        "actionTypes": [
+          "ASK_CLARIFICATION"
+        ]
+      },
+      {
+        "id": "07",
+        "expected": "clarify",
+        "passed": true,
+        "latencyMs": 5051,
+        "actionTypes": [
+          "ASK_CLARIFICATION"
+        ]
+      },
+      {
+        "id": "08",
+        "expected": "reject",
+        "passed": true,
+        "latencyMs": 4164,
+        "actionTypes": [
+          "NO_ACTION"
+        ]
+      },
+      {
+        "id": "09",
+        "expected": "clarify",
+        "passed": true,
+        "latencyMs": 4396,
+        "actionTypes": [
+          "ASK_CLARIFICATION"
+        ]
+      },
+      {
+        "id": "10",
+        "expected": "reject",
+        "passed": true,
+        "latencyMs": 6235,
+        "actionTypes": [
+          "NO_ACTION"
+        ]
+      },
+      {
+        "id": "11",
+        "expected": "reject",
+        "passed": true,
+        "latencyMs": 4235,
+        "actionTypes": [
+          "NO_ACTION"
+        ]
+      },
+      {
+        "id": "12",
+        "expected": "correct proposal",
+        "passed": true,
+        "latencyMs": 3803,
+        "actionTypes": [
+          "REQUEST_STATUS"
+        ]
+      },
+      {
+        "id": "13",
+        "expected": "reject",
+        "passed": true,
+        "latencyMs": 4875,
+        "actionTypes": [
+          "NO_ACTION"
+        ]
+      },
+      {
+        "id": "14",
+        "expected": "clarify",
+        "passed": true,
+        "latencyMs": 4321,
+        "actionTypes": [
+          "ASK_CLARIFICATION"
+        ]
+      },
+      {
+        "id": "15",
+        "expected": "correct proposal",
+        "passed": true,
+        "latencyMs": 4477,
+        "actionTypes": [
+          "RECORD_AVAILABILITY"
+        ]
+      },
+      {
+        "id": "16",
+        "expected": "correct proposal",
+        "passed": true,
+        "latencyMs": 6590,
+        "actionTypes": [
+          "PROPOSE_TASK_CHANGE"
+        ]
+      },
+      {
+        "id": "17",
+        "expected": "correct proposal",
+        "passed": true,
+        "latencyMs": 8601,
+        "actionTypes": [
+          "RECORD_SELF_COMMITMENT",
+          "RECORD_AVAILABILITY"
+        ]
+      },
+      {
+        "id": "18",
+        "expected": "correct proposal",
+        "passed": true,
+        "latencyMs": 4435,
+        "actionTypes": [
+          "CREATE_EVENT_DRAFT"
+        ]
+      },
+      {
+        "id": "19",
+        "expected": "clarify",
+        "passed": true,
+        "latencyMs": 4655,
+        "actionTypes": [
+          "ASK_CLARIFICATION"
+        ]
+      },
+      {
+        "id": "20",
+        "expected": "correct proposal",
+        "passed": true,
+        "latencyMs": 4852,
+        "actionTypes": [
+          "PROPOSE_TASK_CHANGE"
+        ]
+      },
+      {
+        "id": "21",
+        "expected": "correct proposal",
+        "passed": true,
+        "latencyMs": 4136,
+        "actionTypes": [
+          "PROPOSE_ASSIGNMENT"
+        ]
+      },
+      {
+        "id": "22",
+        "expected": "clarify",
+        "passed": true,
+        "latencyMs": 4365,
+        "actionTypes": [
+          "ASK_CLARIFICATION"
+        ]
+      },
+      {
+        "id": "23",
+        "expected": "clarify",
+        "passed": true,
+        "latencyMs": 4157,
+        "actionTypes": [
+          "ASK_CLARIFICATION"
+        ]
+      }
+    ]
+  }
+}

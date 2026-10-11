@@ -17,10 +17,15 @@ function windowLabel(task: Doc<"tasks">, event: Doc<"events">): string {
   const format = new Intl.DateTimeFormat("en-US", { timeZone: event.timezone, month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   return task.windowStart !== undefined && task.windowEnd !== undefined ? `${format.format(task.windowStart)}–${format.format(task.windowEnd)} (${event.timezone})` : "time to be confirmed";
 }
+function deadlineLabel(expiresAt: number, event: Doc<"events">): string {
+  const format = new Intl.DateTimeFormat("en-US", { timeZone: event.timezone, month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return `${format.format(expiresAt)} (${event.timezone})`;
+}
 export async function sendRequest(ctx: MutationCtx, proposal: Doc<"proposals">) {
   const task = await ctx.db.get(proposal.targetTaskId!), event = (await ctx.db.get(proposal.eventId))!;
   if (!task || !proposal.targetUserId) throw new Error("INVALID_PROPOSAL");
-  const content = proposal.type === "task_change" ? `${event.title}: Please reconfirm ${task.title} with this proposed change: ${changeLabel(proposal.taskChangeJson!)}. Reply YES or NO. Current details remain unchanged until everyone accepts.` : `${event.title}: Could you cover ${task.title}, ${windowLabel(task, event)}? Reply YES or NO. No assignment has changed yet.`;
+  const reply = `Reply YES or NO by ${deadlineLabel(proposal.expiresAt, event)}.`;
+  const content = proposal.type === "task_change" ? `${event.title}: Please reconfirm ${task.title} with this proposed change: ${changeLabel(proposal.taskChangeJson!)}. ${reply} Current details remain unchanged until everyone accepts.` : `${event.title}: Could you cover ${task.title}, ${windowLabel(task, event)}? ${reply} No assignment has changed yet.`;
   await notify(ctx, proposal.targetUserId, proposal.eventId, content, `proposal:${proposal._id}:request:${proposal.targetUserId}`, proposal._id);
 }
 function changeLabel(json: string): string {
@@ -63,7 +68,7 @@ export async function createProposal(ctx: MutationCtx, raw: CreateProposalArgs, 
   const proposalId = await ctx.db.insert("proposals", fields);
   await audit(ctx, event._id, args.originatorId, "proposal_created", source, { input, result: proposalId });
   await ctx.scheduler.runAt(args.expiresAt, internal.proposals.expire, { proposalId });
-  if (requiresOrganizerApproval) await notifyOrganizers(ctx, event._id, `${event.title}: Organizer approval is needed before asking a participant to cover ${task.title}. Text APPROVE ${proposalId}.`, `proposal:${proposalId}:approval`, proposalId);
+  if (requiresOrganizerApproval) await notifyOrganizers(ctx, event._id, `${event.title}: Organizer approval is needed before asking a participant to cover ${task.title}. Text APPROVE ${proposalId}. The participant must accept by ${deadlineLabel(args.expiresAt, event)}.`, `proposal:${proposalId}:approval`, proposalId);
   else await sendRequest(ctx, (await ctx.db.get(proposalId))!);
   if (args.type === "task_change" && expandGroup) {
     for (const commitment of commitments.filter(c => c.participantId !== args.targetUserId)) {

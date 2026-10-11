@@ -2,6 +2,8 @@
 
 How a 4-person team builds Rally in parallel. `13-build-plan.md` gives the single-sequence order; this doc splits the same work into lanes that run at the same time against shared contracts. Prompts to hand to coding agents live in [`../prompts/`](../prompts/).
 
+**Current checkpoint — October 10, 2026:** A/B/C/D source is integrated on `main`; the local rehearsal passes, and the integrated backend/demo hardening deployed to development at 22:35 EDT. Live M1/M2 and final M3 acceptance remain open. The timeline below is the original work plan; use [the demo handoff](23-demo-readiness.md) for current evidence and scope cuts.
+
 ## Principle
 
 Parallel work only holds if every cross-lane interface exists **before** lanes start. Prompt 0 freezes those interfaces as typed stubs and fakes; afterwards each lane builds against fakes and never waits on another lane to start.
@@ -75,11 +77,11 @@ Names below are the contract. Prompt 0 creates them as stubs that throw `NOT_IMP
 | `identity.setMessagingState` | internal mutation | A | `STOP`/`PAUSE`/`RESUME`; calls `proposals.cancelForUser` on STOP |
 | `outbox.enqueue` | internal mutation | A | Single path for every outbound message; consent check + idempotency key |
 | `reasoningJobs.enqueue` | internal mutation | C | Queue a job for a non-command message |
-| `reasoningJobs.claim`, `reasoningJobs.complete`, `reasoningJobs.heartbeat` | public mutation, worker-token-guarded when implemented | C | Leased worker queue (`02`); stubs currently reject every call |
+| `reasoningJobs.claim`, `reasoningJobs.complete`, `reasoningJobs.heartbeat` | public mutation, server-verified worker-token guard | C | Implemented leased queue, completion validation and sanitized heartbeat (`02`) |
 | `context.buildPacket` | internal query | C | Minimal scoped packet for a job |
 | `weather.check` + `crons.ts` | internal action | C | P1 weather watch (`09`) |
 
-Prompt 0's concrete argument/return validators live with each function; the accompanying [bootstrap contract](18-bootstrap-contract.md) documents wire shapes and secure implementation requirements. The table above describes the frozen base contract. Lane A messaging and Lane B domain/auth implementations now have test evidence; Lane C remains stubbed. Additive Lane B contracts and review boundaries are recorded in [domain evidence](20-domain-evidence.md). `weather.check` exists, but `crons.ts` registers no jobs until Lane C implements P1. `seed.bootstrap` remains internal and preserves ADR-013's organizer authorization; internal visibility alone is not permission or participant consent.
+Prompt 0's concrete argument/return validators live with each function; the accompanying [bootstrap contract](18-bootstrap-contract.md) documents wire shapes and secure implementation requirements. The table above describes the frozen base contract. Lane A messaging, Lane B domain/auth and Lane C resolver/context/queue/worker implementations have local test evidence. Additive contracts include C's internal `reasoningJobs.expire` and `phoneSetup.execute`, and D's account/status/routing reads described below. Current combined validation is in [the demo handoff](23-demo-readiness.md); earlier Lane B evidence remains in [domain evidence](20-domain-evidence.md). `weather.check` is still a stub and `crons.ts` registers no jobs; weather is cut from the current demo scope. `seed.bootstrap` remains internal and preserves ADR-013's organizer authorization; internal visibility alone is not permission or participant consent.
 
 ## File ownership
 
@@ -128,4 +130,4 @@ Membership writes: A owns `invited → enrolled → left` and `users.messagingSt
 
 The user authorized completing Lane D's remaining backend/app code while deferring live tests. `accounts.current`, `appStatus.event/overview/route`, internal route provision/revoke mutations, the `messagingRoutes` table/indexes, and strict app-facing error envelopes are implemented in the coordinated continuation. Existing domain mutation signatures and canonical enums are preserved. Account/error, backend status/routing and Swift adapter/session implementation were delegated separately; the combined local gate is recorded in the [app README](../ios/Rally/README.md). See [the contract handoff](22-ios-app-contracts.md) for exact access, expiry and provisioning rules.
 
-This supersedes D's missing-read-contract blocker. Live deployment/auth/Photon/device verification remains deferred; Lane C execution and P1/P2 scope are unchanged.
+This supersedes D's missing-read-contract blocker. These contracts are now integrated with C's phone setup and worker on `main`; the combined rehearsal checks authorized app reads against committed messaging/domain state. Actual app authentication/device parity and live acceptance remain separate gates. See [the current M3 scope decision](23-demo-readiness.md#m3-scope-decision) for P1/P2 cuts.

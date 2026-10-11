@@ -52,6 +52,9 @@ describe("Lane B deterministic domain (simulation; no model or real provider)", 
     const p = await proposal();
     expect(await proposal()).toBe(p);
     expect(await t.run(ctx => ctx.db.get(ids.task))).toMatchObject({ status: "confirmed", version: 1 });
+    const fake = new FakeMessagingAdapter();
+    const request = (await t.run(ctx => ctx.db.query("outboundMessages").collect()))[0]!;
+    await t.action(async ctx => deliverWithAdapter(ctx, request._id, () => fake));
     const yes = await message(ids.jordan, "YES");
     expect(await t.mutation(internal.proposals.respond, { proposalId: p, actorId: ids.jordan, sourceMessageId: yes, response: "accept" })).toBe("accepted");
     expect(await t.mutation(internal.proposals.respond, { proposalId: p, actorId: ids.jordan, sourceMessageId: yes, response: "accept" })).toBe("accepted");
@@ -62,7 +65,6 @@ describe("Lane B deterministic domain (simulation; no model or real provider)", 
     expect(await t.run(ctx => ctx.db.get(ids.event))).toMatchObject({ version: 1 });
     const outbox = await t.run(ctx => ctx.db.query("outboundMessages").collect());
     expect(outbox).toHaveLength(4); // one request, one notice per affected person
-    const fake = new FakeMessagingAdapter();
     for (const row of outbox) await t.action(async ctx => deliverWithAdapter(ctx, row._id, () => fake));
     expect(fake.sends).toHaveLength(4);
   });

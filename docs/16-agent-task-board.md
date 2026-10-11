@@ -2,7 +2,9 @@
 
 Each ticket should be implemented independently where possible and closed only after its test evidence exists. Start with T0, not with optional weather or widget work.
 
-## Current AI implementation checkpoint — 2026-10-10
+**Current status — October 10, 2026:** A/B/C/D are integrated on `main`; use [the demo handoff](23-demo-readiness.md) for the latest combined tests, 23-case evaluations, supported Codex versions and remaining live M1/M2/T6/ST-15 gates. The Lane C checkpoint below preserves its original branch/deployment evidence rather than describing today's source boundary.
+
+## Historical Lane C implementation checkpoint — 2026-10-10, before integration into main
 
 **Goal:** an enrolled participant's free-text DM reaches a constrained worker on this Mac and produces a validated proposal. The target's actual YES remains necessary to commit a cross-person assignment.
 

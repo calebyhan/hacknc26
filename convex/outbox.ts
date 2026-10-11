@@ -1,6 +1,7 @@
 import { v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 import { canSend, openEnvelope } from "./lib/messaging";
 import { internal } from "./_generated/api";
 import { SendRequestSchema } from "../packages/shared/adapters";
@@ -43,13 +44,36 @@ const dispatch = v.object({
   spaceId: v.string(), linePhone: v.optional(v.string()),
 });
 
-/** Atomically claim once, recheck consent and recover routing only from inbound. */
+/** These trusted keys identify requests without confusing them with terminal
+ * notices, which also retain proposalId and must be sent after an offer closes. */
+async function proposalRequestIsCurrent(ctx: MutationCtx, row: Doc<"outboundMessages">): Promise<boolean> {
+  if (!row.proposalId) return true;
+  const prefix = `proposal:${row.proposalId}:`;
+  const participantRequest = row.idempotencyKey.startsWith(`${prefix}request:`);
+  const approvalRequest = row.idempotencyKey.startsWith(`${prefix}approval:`);
+  if (!participantRequest && !approvalRequest) return true;
+
+  const proposal = await ctx.db.get(row.proposalId);
+  if (!proposal || proposal.eventId !== row.eventId || proposal.state !== "pending" || proposal.expiresAt <= Date.now()) return false;
+  if (participantRequest) {
+    if (row.idempotencyKey !== `${prefix}request:${row.recipientUserId}` || proposal.targetUserId !== row.recipientUserId || (proposal.requiresOrganizerApproval && proposal.organizerApprovedAt === undefined)) return false;
+  } else {
+    if (row.idempotencyKey !== `${prefix}approval:${row.recipientUserId}` || !proposal.requiresOrganizerApproval || proposal.organizerApprovedAt !== undefined) return false;
+    const membership = await ctx.db.query("memberships").withIndex("by_event_user", q => q.eq("eventId", proposal.eventId).eq("userId", row.recipientUserId)).unique();
+    if (membership?.state !== "enrolled" || membership.role !== "organizer") return false;
+  }
+  const event = await ctx.db.get(proposal.eventId);
+  const task = proposal.targetTaskId ? await ctx.db.get(proposal.targetTaskId) : null;
+  return event?.status === "scheduled" && event.version === proposal.eventVersionAtCreation && task?.eventId === event._id && task.version === proposal.taskVersionAtCreation && task.status !== "completed" && task.status !== "canceled";
+}
+
+/** Atomically claim once, recheck consent/current offer and recover routing only from inbound. */
 export const claim = internalMutation({
   args: { outboundMessageId: v.id("outboundMessages") }, returns: v.union(v.null(), dispatch),
   handler: async (ctx, args): Promise<import("convex/values").Infer<typeof dispatch> | null> => {
     const row = await ctx.db.get(args.outboundMessageId);
     if (!row || row.state !== "queued") return null;
-    if (!await canSend(ctx, row)) {
+    if (!await canSend(ctx, row) || !await proposalRequestIsCurrent(ctx, row)) {
       await ctx.db.patch(row._id, { state: "failed" });
       return null;
     }

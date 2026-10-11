@@ -101,13 +101,13 @@ export const route = internalMutation({
           const status = await ctx.runQuery(internal.domain.statusFor, { userId: sender._id });
           if (status.events.some((detail) => !enrolled.some((m) => m.eventId === detail.event._id))) throw new Error("STATUS_SCOPE_VIOLATION");
           const consented = status.events.filter(detail => memberships.some(m => m.eventId === detail.event._id));
-          await reply(renderStatus({ events: consented.map((detail) => ({ title: detail.event.title, tasks: detail.tasks.map((task) => ({ title: task.title, status: task.status, assigneeCount: task.activeAssigneeIds.length, ...pendingCounts(detail.proposals, task._id) })) })) }), scope);
+          await reply(renderStatus({ events: consented.map((detail) => ({ title: detail.event.title, eventId: detail.event._id, tasks: detail.tasks.map((task) => ({ title: task.title, status: task.status, assigneeCount: task.activeAssigneeIds.length, ...pendingCounts(detail.proposals, task._id) })) })) }), scope);
           break;
         }
         case "LEAVE": {
           const events = await Promise.all(memberships.map(async (m) => ({ membership: m, event: await ctx.db.get(m.eventId) })));
           const matches = events.filter(({ event }) => event && (event._id === command.eventRef || event.title.toLowerCase() === command.eventRef.toLowerCase()));
-          if (matches.length !== 1) { await reply("Please name one of your enrolled events exactly after LEAVE.", scope); break; }
+          if (matches.length !== 1) { await reply("Use LEAVE followed by an exact event name or event ID, not a JOIN code. Text STATUS to check your events.", scope); break; }
           const { membership, event } = matches[0]!;
           // Organizer departure would orphan permissions; ask them to transfer
           // ownership through the domain workflow before leaving.
@@ -133,7 +133,7 @@ export const route = internalMutation({
           const recent = await ctx.db.query("inboundMessages").withIndex("by_sender", (q) => q.eq("senderPhone", message.senderPhone)).order("desc").take(31);
           if (recent.filter((m) => m.receivedAt > Date.now() - 60_000).length > 30) { await reply("Too many requests. Please wait a minute before trying again.", scope); break; }
           const job = await resolveMessageJob(ctx, message._id);
-          if (!job.eventId) { await reply("Which of your events is this about? Please include its name.", scope); break; }
+          if (!job.eventId) { await reply("Which of your events is this about? Please include its name or event ID. Text STATUS to distinguish events with the same name.", scope); break; }
           await ctx.runMutation(internal.reasoningJobs.enqueue, job);
           await reply("I've queued your request for review. No assignment has changed yet.", job.eventId);
           break;

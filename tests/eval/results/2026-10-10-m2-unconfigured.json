@@ -1,0 +1,22 @@
+{
+  "startedAt": "2026-10-10T22:27:07.027498-04:00",
+  "finishedAt": "2026-10-10T22:27:07.520831-04:00",
+  "command": "npm run eval:live",
+  "inputType": "synthetic fixtures only",
+  "inferenceType": "live subscription model; no Convex writes or Photon sends",
+  "cliVersion": "codex-cli 0.160.1",
+  "exitCode": 1,
+  "scriptedHarness": {
+    "command": "npm run eval:fake",
+    "passed": 23,
+    "total": 23,
+    "note": "Scripted fixture validation, not model accuracy"
+  },
+  "result": null,
+  "limitation": "Local .env.local lacks RALLY_PROVIDER and RALLY_MODEL; no model call occurred. Codex 0.160.1 and ChatGPT login checks passed; API keys absent.",
+  "providerPreflight": {
+    "cliVersion": "codex-cli 0.160.1",
+    "chatgptLogin": true,
+    "apiKeyConfigured": false
+  }
+}

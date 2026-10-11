@@ -2,11 +2,13 @@
 
 Date: 2026-10-10. Goal: prove that signed inbound routing, consent, deterministic domain transitions and outbox delivery work together without a model, rather than only passing isolated lane tests.
 
+**Historical A/B checkpoint:** the counts, deployment and stub statements below describe the earlier A/B integration and first D merge. `main` now integrates C's phone setup/worker and D's completed local account/status continuation. See [current integrated rehearsal and acceptance](23-demo-readiness.md); the historical results here are not the current full-suite total or proof of live M1/M2/ST-15.
+
 ## Integration harness
 
 `tests/integration/messaging-domain.test.ts` runs **13 simulations** against the actual HTTP handler, Spectrum verification/component, encrypted inbox, scheduler, command router, Auth0-facing account APIs, invitations, event/task APIs, proposals, commitments, scoped status and outbox claim/settlement. Its only runtime replacement is the external Spectrum sender boundary, which calls the real `deliverWithAdapter` through `FakeMessagingAdapter`. App identities, webhook payloads, signing/encryption keys and `+1555…` phones are fixtures. **No actual Photon message, real Auth0 login or Claude invocation is represented by this harness.**
 
-Setup registers an app organizer, verifies a synthetic phone JOIN, creates/confirms an event/task through public APIs, and redeems genuine fixture invitations through signed HTTP input and scheduled routing. Selecting contacts produces no send. The initial assignee accepts an actual fixture proposal; no commitment is directly seeded. Since Lane C remains absent, proposals are created explicitly through the internal domain API using the stored signed fixture request as evidence. This is labeled **simulated manual setup**, not natural-language interpretation.
+Setup registers an app organizer, verifies a synthetic phone JOIN, creates/confirms an event/task through public APIs, and redeems genuine fixture invitations through signed HTTP input and scheduled routing. Selecting contacts produces no send. The initial assignee accepts an actual fixture proposal; no commitment is directly seeded. Lane C was absent at this checkpoint, so this A/B harness creates proposals explicitly through the internal domain API using the stored signed fixture request as evidence. This remains **simulated manual setup**, not natural-language interpretation. The separate current rehearsal exercises the worker loop and actual queue/domain together.
 
 The scheduler drains only due jobs between steps, preserving TTL/watchdog timing. Tests assert no scheduled job failures and provider-accepted fake sends have one attempt/provider ID.
 
@@ -58,7 +60,7 @@ npm run contracts:list: 38 registered functions
 git diff --check: passed
 ```
 
-The cloud crypto check is a **synthetic self-check**, not a Photon send. No simulation fixture or fake consent was written to the live deployment. Existing real HELP/onboarding transport evidence remains in `19-messaging-evidence.md`. The **separate live M1 gate** still needs actual selected participants to JOIN and the target's real Photon YES; these simulations do not replace that trace. Genuine app login has not been observed, and Lane C free-text reasoning remains unimplemented.
+The cloud crypto check was a **synthetic self-check**, not a Photon send. No simulation fixture or fake consent was written to the live deployment. At this checkpoint, the **separate live M1 gate** still needed actual selected participants to JOIN and the target's real Photon YES; genuine app login had not been observed, and Lane C free-text reasoning was unimplemented. Later JOIN/enrolled STATUS observations are recorded in [messaging evidence](19-messaging-evidence.md); C is now implemented and integrated. Actual acceptance/reassignment and app/device parity remain open as detailed in [the current handoff](23-demo-readiness.md).
 
 ## Combined merge validation
 
@@ -72,4 +74,4 @@ The unchanged iOS source passed `./scripts/test-simulator.sh <booted-simulator-U
 
 The M1 prompt now uses the authenticated setup script rather than the simulation seed, requires persisted originator evidence/current versions, establishes initial assignments by real acceptance, and separates the NO scenario from the already-accepted task. Two phones can exercise organizer-to-participant reassignment; the canonical separate Alex/Maya/Jordan roles need three real consenting participants.
 
-The iOS adapter still needs registration before protected queries, phone linking before event ownership, task windows (required for assignment eligibility), draft confirmation and organizer event JOIN. These are documented M2 follow-ups, not implied by the backend merge. Unknown Photon delivery outcomes still require reconciliation; no provider receipt or exactly-once external delivery guarantee was added.
+At this first merge, the iOS adapter still needed registration before protected queries, phone linking before event ownership, task windows, draft confirmation and organizer event JOIN. The later D continuation implemented and locally tested those flows; see [app contracts](22-ios-app-contracts.md) and [current evidence](23-demo-readiness.md). Their actual live/device acceptance remains open. Unknown Photon delivery outcomes still require reconciliation; no provider receipt or exactly-once external delivery guarantee was added.

@@ -136,7 +136,7 @@ export async function executeDecision(ctx: MutationCtx, jobId: Id<"reasoningJobs
       }
       case "REQUEST_STATUS": {
         const detail = await detailFor(ctx, sender._id, event._id);
-        await notify(ctx, sender._id, event._id, renderStatus({ events: [{ title: event.title, tasks: detail.tasks.map(t => ({ title: t.title, status: t.status, assigneeCount: t.activeAssigneeIds.length, ...pendingCounts(detail.proposals, t._id) })) }] }), `${key}:reply`, undefined, message._id); break;
+        await notify(ctx, sender._id, event._id, renderStatus({ events: [{ title: event.title, eventId: event._id, tasks: detail.tasks.map(t => ({ title: t.title, status: t.status, assigneeCount: t.activeAssigneeIds.length, ...pendingCounts(detail.proposals, t._id) })) }] }), `${key}:reply`, undefined, message._id); break;
       }
     }
   }

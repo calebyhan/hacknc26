@@ -16,6 +16,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && npm run typecheck --workspaces",
     "test": "vitest run",
     "test:watch": "vitest",
+    "demo:rehearse": "vitest run tests/integration/demo-rehearsal.test.ts --reporter=verbose",
     "contracts:list": "node scripts/list-contracts.mjs",
     "messaging:configure": "node scripts/configure-messaging.mjs",
     "domain:setup": "node --env-file-if-exists=.env.local scripts/domain-setup.mjs",

@@ -47,7 +47,7 @@ describe("phone-only setup (signed simulated DMs, fake delivery, no app identity
     await h.receive(h.phones.alex, `CONFIRM ${event._id} 1`, "confirm-picnic");
     await h.receive(h.phones.alex, `CONFIRM ${event._id} 1`, "confirm-picnic");
     expect(await h.t.run(ctx => ctx.db.get(event._id))).toMatchObject({ status: "scheduled", version: 2 });
-    await expect(h.t.query(api.events.myEvents, {})).rejects.toThrow("UNAUTHORIZED");
+    await expect(h.t.query(api.events.myEvents, {})).rejects.toMatchObject({ data: { version: 1, code: "AUTHENTICATION_REQUIRED" } });
     expect(await h.t.run(ctx => ctx.db.query("reasoningJobs").collect())).toHaveLength(0);
   });
   it("handles STOP and RESUME before any event exists without enabling event consent", async () => {

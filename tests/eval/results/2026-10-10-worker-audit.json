@@ -1,0 +1,49 @@
+{
+  "checkedAt": "2026-10-10T22:30:19.096649-04:00",
+  "scope": "Constrained local worker; no live backend writes or Photon sends; runtime worker not started or stopped",
+  "blockingIssue": {
+    "observed": "Installed codex-cli 0.160.1 was rejected by the prior exact 0.152.1 guard",
+    "fix": "Allow only inspected 0.152.1 and 0.160.1; all other versions still fail closed",
+    "redRegression": "accepts inspected codex-cli 0.160.1 with ChatGPT login failed with INFERENCE_UNAVAILABLE before the fix"
+  },
+  "localInterfaces": [
+    "codex --version",
+    "codex exec --help",
+    "codex features list",
+    "codex debug models"
+  ],
+  "officialSources": [
+    "https://learn.chatgpt.com/docs/config-file/config-reference",
+    "https://learn.chatgpt.com/docs/developer-commands?surface=cli"
+  ],
+  "capabilityInventory": {
+    "command": "RALLY_VERIFY_CODEX_CAPABILITIES=1 npx vitest run worker/tests/codex-capabilities.test.ts",
+    "cliVersion": "codex-cli 0.160.1",
+    "transport": "Ephemeral localhost Responses mock; no auth; rejects with HTTP 400 before any model response",
+    "registeredTools": "tools property omitted (no tool definitions)",
+    "authorizationHeaderPresent": false,
+    "model": "gpt-5.6-luna",
+    "runtimeRestrictionChanges": false,
+    "mockOnlyOverrides": [
+      "model provider and loopback base URL",
+      "requires_openai_auth=false",
+      "no request retries",
+      "request compression disabled"
+    ],
+    "featureInventoryCaveat": "unified_exec reports true even when configured false; shell_tool and code_mode_host report false. Actual captured request exposes no tool definitions."
+  },
+  "tests": {
+    "workerAndEval": "119 passed in 9 files before adding the opt-in capability inventory test",
+    "capabilityInventory": "1 passed against installed CLI; no live model used",
+    "workerTypecheck": "passed"
+  },
+  "evaluation": {
+    "fake": "23/23 scripted fixtures; not accuracy",
+    "liveArtifact": "2026-10-10-m2-live.json",
+    "failedSetupArtifact": "2026-10-10-m2-unconfigured.json",
+    "live": "One full synthetic-input live subscription inference sweep: 23/23; p50 4365 ms; p95 6590 ms",
+    "limits": "Checks schema, event scope and action types; the named participant regression additionally checks task and participant references. Does not prove all references/dates, live backend execution, consent, delivery or participant acceptance."
+  },
+  "configurationAtEval": "This checkout had no RALLY_PROVIDER or RALLY_MODEL configuration. Eval used transient established codex/gpt-5.6-luna values only; the evaluation did not change persistent configuration.",
+  "configurationFollowUp": "The integration owner subsequently added public provider/model/backend URL settings to ignored .env.local, preserving credentials and mode 0600. Read-only health confirmed the existing worker online; no duplicate worker was started."
+}

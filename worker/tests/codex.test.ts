@@ -30,9 +30,17 @@ describe("constrained Codex adapter (fake CLI)", () => {
       await expect(new CodexInferenceProvider({ model: "fixture", runner: async () => ({ exitCode: 0, stdout }) }).decide(exampleContextPacket)).rejects.toThrow("INVALID_DECISION");
     }
   });
-  it("requires the inspected CLI version and ChatGPT login", async () => {
-    const provider = new CodexInferenceProvider({ model: "fixture-model", runner: async r => ({ exitCode: 0, stdout: r.args[0] === "--version" ? "codex-cli 0.152.1" : "Logged in using ChatGPT" }) });
+  it.each(["codex-cli 0.152.1", "codex-cli 0.160.1"])("accepts inspected %s with ChatGPT login", async version => {
+    const provider = new CodexInferenceProvider({ model: "fixture-model", runner: async r => ({ exitCode: 0, stdout: r.args[0] === "--version" ? version : "Logged in using ChatGPT" }) });
     await expect(provider.checkReady()).resolves.toBeUndefined();
+  });
+  it("rejects an uninspected CLI version before checking login or starting inference", async () => {
+    const runner = vi.fn(async () => ({ exitCode: 0, stdout: "codex-cli 0.161.0" }));
+    await expect(new CodexInferenceProvider({ model: "fixture-model", runner }).checkReady()).rejects.toThrow("INFERENCE_UNAVAILABLE");
+    expect(runner).toHaveBeenCalledTimes(1);
+    expect(runner).toHaveBeenCalledWith(expect.objectContaining({ args: ["--version"] }));
+  });
+  it("requires a ChatGPT login", async () => {
     for (const status of ["Logged in using an API key", "Not logged in"]) {
       const unavailable = new CodexInferenceProvider({ model: "fixture-model", runner: async r => ({ exitCode: 0, stdout: r.args[0] === "--version" ? "codex-cli 0.152.1" : status }) });
       await expect(unavailable.checkReady()).rejects.toThrow("INFERENCE_UNAVAILABLE");

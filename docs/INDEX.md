@@ -26,6 +26,7 @@
 | `21-messaging-domain-integration.md` | Signed full-pipeline A+B simulation tests, cancellation/routing fixes and verification | Reviewing messaging/domain integration |
 | `22-ios-app-contracts.md` | Implemented account/status/errors, private routing provisioning, local acceptance boundary | Reviewing the completed D integration or preparing live app acceptance |
 | `22-local-ai-evidence.md` | Local Claude/Codex implementation, real synthetic evaluation, development deployment/heartbeat, phone-only setup and optional Auth0 CLI | Operating the worker or preparing the live AI test |
+| `23-demo-readiness.md` | Combined M1–M3 automated rehearsal, scenario evidence, demo scope and remaining live gates | Running the repeatable demo or checking readiness |
 | `../prompts/` | Kickoff prompts per lane and checkpoint | Starting a lane or checkpoint session |
 
 ## How to use

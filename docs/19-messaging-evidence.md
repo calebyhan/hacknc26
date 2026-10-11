@@ -1,5 +1,7 @@
 # Lane A messaging evidence and setup
 
+**Current source status — October 10, 2026:** [The integrated demo handoff](23-demo-readiness.md) supersedes the historical branch/source boundary below. `main` now includes C's phone setup/worker and D's account/status contracts. Preserve the dated transport and user-observation evidence here; neither the merge nor the automated rehearsal closes live M1/M2 acceptance.
+
 Date: 2026-10-10. **Goal:** a participant-initiated DM reaches a durable inbox, can enroll through JOIN, and receives consent-checked replies. **T0's real inbound/reply smoke test passes. A later user-provided transcript shows JOIN, enrolled STATUS, event setup and a pending offer followed by expiry; live acceptance/reassignment remains incomplete.** See the [latest follow-up](#user-reported-live-setup-and-offer-follow-up) for its evidence boundary. Earlier checkpoints below retain their historical scope.
 
 Lane B follow-up: the historical stub/blocker statements below describe the Lane A checkpoint. Domain/auth implementation and actual-router simulation tests now pass; see [Lane B evidence](20-domain-evidence.md). The new phone observations supersede the earlier absence of live JOIN/STATUS evidence; the multi-phone acceptance gate remains pending.
@@ -21,11 +23,11 @@ Recorded 2026-10-10 from a transcript supplied by the user, plus their clarifica
 
 The inspected decision/planner code creates offers with `expiresAt = Date.now() + 600000`. The scheduler closes pending offers at that deadline; the task's future date does not extend the reply window. The reported ten-minute interval is consistent with intended expiry, not evidence of premature expiry. Exact creation-to-send delay remains unmeasured. Setup before an event's start can be valid; the transcript alone does not establish that the task window is wrong.
 
-### Source and deployment reconciliation
+### Historical source and deployment reconciliation — before the C merge
 
 At this follow-up, local `main` is `1e3e64a`, containing the tested A/B/D merge. `git fetch origin` discovered `origin/lane-c/local-ai` at `6c4c444`; its phone setup parser/handler matches the CREATE EVENT and CONFIRM behavior absent from local `main`. That branch also contains resolver/queue/worker code. Its `docs/22-local-ai-evidence.md` records deployment to `calm-jackal-984`, 324 local tests and 23 synthetic-input live inference cases. Those are that branch's recorded results, not newly executed checks in this follow-up, and its sampled worker availability is not a current health check.
 
-The transcript is consistent with that newer branch, but does not identify its exact deployed commit. Lane C is therefore still stubbed on this `main`, while newer implementation and deployment evidence exist separately. Reconcile C with the merged D contracts before deploying this checkout; do not overwrite the newer backend with stubs. No merge, deployment, provider call or live data mutation was performed for this assessment.
+The transcript was consistent with that newer branch, but did not identify its exact deployed commit. At this assessment, Lane C was still stubbed on `main`, while newer implementation and deployment evidence existed separately. The assessment therefore required reconciling C with the merged D contracts before deployment. No merge, deployment, provider call or live data mutation was performed for that assessment. The later integration recorded in [the demo handoff](23-demo-readiness.md) resolves this source mismatch; deployment evidence must still identify the deployed revision separately.
 
 ### Remaining M1 evidence
 
@@ -33,7 +35,7 @@ Use one unambiguous event ID and a fresh offer to the intended opted-in target. 
 
 Verification for this update: reviewed source on both refs and ran documentation diff/privacy checks only. No runtime code changed and no test suite was rerun. Earlier merged-tree evidence remains 225 backend tests, 73 iOS unit tests and eight simulator UI tests, all passing.
 
-## Implementation
+## Historical Lane A implementation checkpoint — 2026-10-10
 
 - Native HMAC/timestamp verification uses the installed component's `parseWebhook` and `headerRecord`. Only inbound iMessage text DMs with E.164 sender metadata enter Rally. Outgoing messages, groups, signals and other content are ignored. A body-supplied name/phone never supplies identity.
 - The registered Spectrum component retains verified routing metadata and redacted content with `triggersTurn=false`. Rally stores an AES-GCM encrypted minimized envelope before returning HTTP 200 and schedules per-message routing in the insertion transaction. Both durable writes deduplicate individually; if either fails HTTP returns 503 so redelivery can finish. Component `handled` is not proof of a Rally reply. Approvals are never batched.

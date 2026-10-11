@@ -2,6 +2,8 @@
 
 Everyone. After this checkpoint, no new features: only fixes on the end-to-end path (`docs/13` kill switch at hour 18).
 
+The [current preparation report](../docs/23-demo-readiness.md) records the combined local test gate, reproducible simulated rehearsal and P1/P2 cuts. Weather/flyer/widget/extra integrations are cut; the optional demo segment uses cancellation or worker-outage recovery. M3's final acceptance remains open until the real M1/M2 evidence below exists.
+
 ## Steps
 
 1. **P0 gate (`docs/01`).** Run the full fake-provider suite: ST-01–ST-13 and ST-16–ST-18. Confirm A1/A2 have passed live (M1) and A10 has an on-record test. Paste the output.
