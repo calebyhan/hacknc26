@@ -7,7 +7,7 @@ export default defineConfig({
         test: {
           name: "contracts",
           environment: "node",
-          include: ["packages/shared/**/*.test.ts", "worker/**/*.test.ts", "tests/contracts/**/*.test.ts"],
+          include: ["packages/shared/**/*.test.ts", "worker/**/*.test.ts", "tests/contracts/**/*.test.ts", "tests/eval/**/*.test.ts"],
         },
       },
       {

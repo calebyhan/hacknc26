@@ -4,7 +4,9 @@ import { internal } from "./_generated/api";
 import { openEnvelope, senderFor } from "./lib/messaging";
 import { parseCommand } from "../packages/shared/commands";
 import { controlCopy, helpCopy, invalidJoinCopy, onboardingCopy, pendingCounts, renderStatus, unavailableCopy } from "../packages/shared/copy";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
+import { resolveMessageJob } from "./context";
+import { parsePhoneSetupCommand, phoneSetupErrorCopy } from "../packages/shared/phoneSetup";
 
 /**
  * Lane A: load persisted verified inbound, then shared parseCommand. Derive the
@@ -42,15 +44,26 @@ export const route = internalMutation({
     }
     if (!user) throw new Error("SENDER_NOT_FOUND");
     const sender = user;
-    const memberships = (await ctx.db.query("memberships").withIndex("by_user", (q) => q.eq("userId", sender._id)).collect()).filter((m) => m.state === "enrolled");
+    const enrolled = (await ctx.db.query("memberships").withIndex("by_user", (q) => q.eq("userId", sender._id)).collect()).filter((m) => m.state === "enrolled");
+    const memberships: Doc<"memberships">[] = [];
+    for (const membership of enrolled) {
+      const consent = membership.consentSourceMessageId ? await ctx.db.get(membership.consentSourceMessageId) : null;
+      if (membership.consentAt !== undefined && consent?.provider === "spectrum" && consent.senderPhone === sender.verifiedPhoneE164) memberships.push(membership);
+    }
     const reply = async (content: string, eventId?: Id<"events">, suffix = "reply") => {
       await ctx.runMutation(internal.outbox.enqueue, { idempotencyKey: `inbound:${message._id}:${suffix}`, recipientUserId: sender._id, content, directReplyToMessageId: message._id, ...(eventId ? { eventId } : {}) });
     };
     const finish = async () => { await ctx.db.patch(message._id, { processingState: "processed" }); return null; };
-    if (command.type === "STOP" || ((command.type === "PAUSE" || command.type === "RESUME") && memberships.length)) {
+    if (command.type === "STOP" || command.type === "PAUSE" || command.type === "RESUME") {
       const state = command.type === "STOP" ? "stopped" : command.type === "PAUSE" ? "paused" : "active";
       await ctx.runMutation(internal.identity.setMessagingState, { messageId: message._id, state });
       await reply(controlCopy[state]);
+      return finish();
+    }
+    if (command.type === "UNKNOWN" && parsePhoneSetupCommand(envelope.text)) {
+      if (sender.messagingState !== "active") return finish();
+      try { await ctx.runMutation(internal.phoneSetup.execute, { messageId: message._id }); }
+      catch { await reply(phoneSetupErrorCopy); }
       return finish();
     }
     if (command.type === "HELP") { await reply(helpCopy); return finish(); }
@@ -86,8 +99,9 @@ export const route = internalMutation({
         }
         case "STATUS": {
           const status = await ctx.runQuery(internal.domain.statusFor, { userId: sender._id });
-          if (status.events.some((detail) => !memberships.some((m) => m.eventId === detail.event._id))) throw new Error("STATUS_SCOPE_VIOLATION");
-          await reply(renderStatus({ events: status.events.map((detail) => ({ title: detail.event.title, tasks: detail.tasks.map((task) => ({ title: task.title, status: task.status, assigneeCount: task.activeAssigneeIds.length, ...pendingCounts(detail.proposals, task._id) })) })) }), scope);
+          if (status.events.some((detail) => !enrolled.some((m) => m.eventId === detail.event._id))) throw new Error("STATUS_SCOPE_VIOLATION");
+          const consented = status.events.filter(detail => memberships.some(m => m.eventId === detail.event._id));
+          await reply(renderStatus({ events: consented.map((detail) => ({ title: detail.event.title, tasks: detail.tasks.map((task) => ({ title: task.title, status: task.status, assigneeCount: task.activeAssigneeIds.length, ...pendingCounts(detail.proposals, task._id) })) })) }), scope);
           break;
         }
         case "LEAVE": {
@@ -118,16 +132,10 @@ export const route = internalMutation({
           if (pending && /^(maybe|probably)\b/iu.test(envelope.text.trim())) { await reply("No acceptance recorded. Please reply YES or NO.", scope); break; }
           const recent = await ctx.db.query("inboundMessages").withIndex("by_sender", (q) => q.eq("senderPhone", message.senderPhone)).order("desc").take(31);
           if (recent.filter((m) => m.receivedAt > Date.now() - 60_000).length > 30) { await reply("Too many requests. Please wait a minute before trying again.", scope); break; }
-          const focus = await ctx.db.query("conversationFocus").withIndex("by_user", (q) => q.eq("userId", sender._id)).unique();
-          const accessibleEvents = await Promise.all(memberships.map((membership) => ctx.db.get(membership.eventId)));
-          const explicit = accessibleEvents.filter((event) => event && envelope.text.toLowerCase().includes(event.title.toLowerCase()));
-          const eventId = explicit.length === 1 ? explicit[0]!._id : explicit.length > 1 ? undefined : focus && focus.expiresAt > Date.now() && memberships.some((m) => m.eventId === focus.lastEventId) ? focus.lastEventId : memberships.length === 1 ? scope : undefined;
-          if (!eventId) { await reply("Which of your events is this about? Please include its name.", scope); break; }
-          const event = await ctx.db.get(eventId);
-          if (!event) throw new Error("EVENT_NOT_FOUND");
-          const tasks = await ctx.db.query("tasks").withIndex("by_event", (q) => q.eq("eventId", eventId)).collect();
-          await ctx.runMutation(internal.reasoningJobs.enqueue, { messageId: message._id, eventId, contextVersion: event.version, taskVersions: tasks.map((task) => ({ taskId: task._id, version: task.version })) });
-          await reply("I've queued your request for review. No assignment has changed yet.", eventId);
+          const job = await resolveMessageJob(ctx, message._id);
+          if (!job.eventId) { await reply("Which of your events is this about? Please include its name.", scope); break; }
+          await ctx.runMutation(internal.reasoningJobs.enqueue, job);
+          await reply("I've queued your request for review. No assignment has changed yet.", job.eventId);
           break;
         }
       }

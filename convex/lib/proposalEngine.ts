@@ -63,7 +63,7 @@ export async function createProposal(ctx: MutationCtx, raw: CreateProposalArgs, 
   const proposalId = await ctx.db.insert("proposals", fields);
   await audit(ctx, event._id, args.originatorId, "proposal_created", source, { input, result: proposalId });
   await ctx.scheduler.runAt(args.expiresAt, internal.proposals.expire, { proposalId });
-  if (requiresOrganizerApproval) await notifyOrganizers(ctx, event._id, `${event.title}: Organizer approval is needed before asking a participant to cover ${task.title}. Proposal ${proposalId}.`, `proposal:${proposalId}:approval`, proposalId);
+  if (requiresOrganizerApproval) await notifyOrganizers(ctx, event._id, `${event.title}: Organizer approval is needed before asking a participant to cover ${task.title}. Text APPROVE ${proposalId}.`, `proposal:${proposalId}:approval`, proposalId);
   else await sendRequest(ctx, (await ctx.db.get(proposalId))!);
   if (args.type === "task_change" && expandGroup) {
     for (const commitment of commitments.filter(c => c.participantId !== args.targetUserId)) {

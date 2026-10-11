@@ -2,6 +2,7 @@ export interface WorkerConfig {
   readonly convexUrl: string;
   readonly workerToken: string;
   readonly model: string;
+  readonly provider: "claude" | "codex";
 }
 
 export class WorkerConfigError extends Error {
@@ -32,6 +33,12 @@ export function loadWorkerConfig(
   const convexUrl = environment.CONVEX_URL ?? "";
   const workerToken = environment.RALLY_WORKER_TOKEN ?? "";
   const model = environment.RALLY_MODEL ?? "";
+  const provider = environment.RALLY_PROVIDER ?? "claude";
+  if (provider !== "claude" && provider !== "codex") throw new WorkerConfigError("RALLY_PROVIDER must be claude or codex");
+  if (environment.ANTHROPIC_API_KEY) throw new WorkerConfigError("ANTHROPIC_API_KEY is not authorized for the subscription worker");
+  if (environment.OPENAI_API_KEY || environment.CODEX_API_KEY) throw new WorkerConfigError("OpenAI API keys are not authorized for the subscription worker");
+  if (workerToken.length < 32 || workerToken.length > 512) throw new WorkerConfigError("RALLY_WORKER_TOKEN must contain 32–512 characters");
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(model)) throw new WorkerConfigError("RALLY_MODEL must be a model name or alias");
 
   let parsedUrl: URL;
   try {
@@ -50,7 +57,7 @@ export function loadWorkerConfig(
     throw invalidConvexUrl();
   }
 
-  return { convexUrl, workerToken, model };
+  return { convexUrl, workerToken, model, provider };
 }
 
 function invalidConvexUrl(): WorkerConfigError {

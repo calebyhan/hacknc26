@@ -12,3 +12,4 @@ export * from "./context";
 export * from "./copy";
 export * from "./publicErrors";
 export * from "./appStatus";
+export * from "./phoneSetup";

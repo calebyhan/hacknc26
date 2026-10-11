@@ -78,6 +78,10 @@ describe("context and commands", () => {
     expect(ContextPacketSchema.safeParse({ ...exampleContextPacket, sender: { ...exampleContextPacket.sender, phone: "+15550100001" } }).success).toBe(false);
     expect(ContextPacketSchema.safeParse({ ...exampleContextPacket, candidateEvents: [{ ...exampleContextPacket.candidateEvents[0], unrelatedMembers: [] }] }).success).toBe(false);
     expect(ContextPacketSchema.safeParse({ ...exampleContextPacket, relevantTasks: [{ ...exampleContextPacket.relevantTasks[0], version: 0 }] }).success).toBe(false);
+    const participant = { userId: "fixture_person", displayName: "Caleb", role: "member" };
+    expect(ContextPacketSchema.safeParse({ ...exampleContextPacket, relevantParticipants: [participant] }).success).toBe(true);
+    expect(ContextPacketSchema.safeParse({ ...exampleContextPacket, relevantParticipants: [{ ...participant, phone: "+15550100001" }] }).success).toBe(false);
+    expect(ContextPacketSchema.safeParse({ ...exampleContextPacket, relevantParticipants: Array.from({ length: 101 }, () => participant) }).success).toBe(false);
   });
 
   it("defines all deterministic commands and parses explicit YES", () => {

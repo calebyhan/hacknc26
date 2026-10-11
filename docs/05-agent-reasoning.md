@@ -29,6 +29,11 @@ Run a persistent Node.js/TypeScript process on the team's Apple Silicon Mac. Use
   "relevantTasks": [
     {"id": "task_setup", "name": "setup", "activeAssigneeIds": ["usr_maya"], "status": "confirmed", "version": 3}
   ],
+  "relevantParticipants": [
+    {"userId": "usr_alex", "displayName": "Alex", "role": "organizer"},
+    {"userId": "usr_maya", "displayName": "Maya", "role": "member"},
+    {"userId": "usr_jordan", "displayName": "Jordan", "role": "member"}
+  ],
   "pendingProposalsForSender": [],
   "incomingText": "Maya can't do setup. Could Jordan cover it?",
   "eventVersion": 7
@@ -36,6 +41,8 @@ Run a persistent Node.js/TypeScript process on the team's Apple Silicon Mac. Use
 ```
 
 Do not include other users' unrelated events, entire contact lists, or cross-event private messages. For complex tasks, add only relevant structured constraints.
+
+`relevantParticipants` is an optional additive field for legacy packets; current producers include at most 100 people enrolled in the selected event with verified phone consent. It contains only user ID, display name and event role. An unscoped packet has an empty roster. Resolve a unique name to its exact supplied ID; missing or duplicate names require clarification. The backend independently rechecks membership, eligibility, versions and acceptance.
 
 ## Structured output contract
 
