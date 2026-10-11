@@ -4,7 +4,7 @@ Checkpoint: October 10, 2026, EDT. Branch: `lane-c/local-ai`, incorporating the 
 
 **Goal:** create an event through iMessage, then route an enrolled person's free-text request to this Mac's worker for a validated event-scoped suggestion. A cross-person offer stays pending until the correct target accepts. Member suggestions require organizer approval first.
 
-The integrated backend is deployed to existing `calebhantech:rally:dev/caleb-han`, `calm-jackal-984`. This Mac's Codex worker is online with real subscription inference verified on synthetic inputs. **Actual group coordination remains unverified:** this backend has no events or enrolled memberships yet, so no real free-text queue job or target acceptance was exercised.
+The integrated backend is deployed to existing `calebhantech:rally:dev/caleb-han`, `calm-jackal-984`. This Mac's Codex worker is online with real subscription inference verified on synthetic inputs. **Actual group coordination remains unverified:** real phone setup has now created drafts and organizer JOIN consent, but no actual free-text worker job, friend enrollment or target acceptance has been verified.
 
 ## Tasks and changed files
 
@@ -28,7 +28,7 @@ Frozen function signatures and shared AgentDecision/ContextPacket shapes are ret
 npm run check
   strict root/Convex, shared and worker checks pass
   Test Files  24 passed (24)
-       Tests  316 passed (316)
+       Tests  318 passed (318)
 npm run contracts:list
   40 registered functions
 npm run eval:fake
@@ -106,7 +106,7 @@ The user clarified that P0 should need Convex, Photon and a local subscription-b
 
 Implemented deterministic phone setup uses `CREATE EVENT`, then actual organizer `JOIN <code>` and explicit owner `CONFIRM <event ID> <version>`. TASK adds a future timed unassigned item. INVITE selects a contact, returns a human-handoff code to the organizer, and never sends to that contact. APPROVE records authorized organizer approval while still requiring target acceptance. Read [the exact grammar and runbook](12-deployment-and-operations.md#phone-only-event-setup).
 
-Eight new tests cover strict dates/timezones/windows, unknown-command preservation, consent-scoped STATUS with another unconsented draft, a draft requiring JOIN and current-version owner confirmation, anonymous app denial, timed-task creation, silent contact selection, signed participant enrollment, pending model-derived offers until target YES, duplicate IDs, unauthorized/foreign writes and approvals, malformed/past setup, exact audited response hashes, and STOP/RESUME before any event exists. Delivery/model inputs remain explicitly simulated; these tests do not establish real consent.
+Ten new tests cover strict dates/timezones/windows, unknown-command preservation, consent-scoped STATUS with another unconsented draft, a draft requiring JOIN and current-version owner confirmation, anonymous app denial, timed-task creation, silent contact selection, signed participant enrollment, pending model-derived offers until target YES, duplicate IDs, unauthorized/foreign writes and approvals, malformed/past setup, exact audited response hashes, and STOP/RESUME before any event exists. Delivery/model inputs remain explicitly simulated; these tests do not establish real consent.
 
 ```text
 npx convex dev --once --typecheck enable --tail-logs disable
@@ -127,6 +127,15 @@ read-only sanitized table inspection
   newest inbound: 2026-10-10T20:01:21.735Z
 ```
 
-No new actual Photon message or real event was created by this work. The user was asked to send CREATE EVENT to their existing provisioned Rally conversation and confirm receipt of the instructions. The current live gate is that real DM, followed by genuine draft/JOIN/CONFIRM and a second participant's JOIN and YES/NO. Record provider acceptance separately from actual receipt. No admin identity override, fake cloud consent, or real commitment seed was used.
+Before the live follow-up below, no new actual Photon message or real event was created by this work. The user was asked to send CREATE EVENT to their existing provisioned Rally conversation and confirm receipt of the instructions. The current live gate is that real DM, followed by genuine draft/JOIN/CONFIRM and a second participant's JOIN and YES/NO. Record provider acceptance separately from actual receipt. No admin identity override, fake cloud consent, or real commitment seed was used.
 
 Open risks: real two-phone M1 and app M2 acceptance, actual live context/reference accuracy, malformed model output and subscription limits, delivery receipts, and Mac uptime. Natural-language first-event drafting, draft edits, invitation refresh and weather remain deferred; explicit phone setup is implemented. Obtain affected-lane review before a shared branch merge.
+
+## Real phone setup follow-up — October 10, 2026, 9:22–9:30 PM EDT
+
+- User screenshots confirm actual receipt of the current onboarding reply, CREATE EVENT syntax instructions, and the newly created draft reply. This is live Photon traffic, not an injected fixture. No phone number, invitation code or message ID is copied into this evidence.
+- Sanitized read-only inspection found actual drafts and organizer event JOIN consent. One of two test drafts reached scheduled; the specific draft in the user's screenshot was still draft/version 1 with organizer consent and no invited/enrolled member at the later scoped check. Do not infer that every draft is scheduled from an aggregate count. The user was given the exact scoped CONFIRM command, not an administrator override.
+- A friend tried the organizer's own JOIN code and received the generic invalid-invitation reply, confirmed by screenshot. The organizer code is phone-bound and cannot enroll that friend. They need an organizer-generated INVITE for the friend's selected phone, followed by the friend's actual JOIN. That step remains pending. The earlier reported missing reply had no corresponding new inbox row at initial inspection; its root cause was not established.
+- A test reproduced a separate real-flow risk: a person who says hi before invitation retains the generic display name, so model reference resolution by the selected name fails. `convex/invitations.ts` now adopts the selected name only when the correct phone redeems the invitation and the existing name is the placeholder. Canonical user identity and an existing non-placeholder profile name are preserved. Wrong-phone JOIN never changes the name. Two new cases and the updated actual Domain pipeline regression pass.
+- `npm run check`: strict checks and 318 tests in 24 files pass. After draft instructions were made clearer, the focused signed-DM suite passes all eight integration tests. Changed files: `convex/invitations.ts`, `convex/phoneSetup.ts`, `tests/integration/phone-setup.test.ts`, README and docs 12/14/16/this record. Future draft replies put JOIN and CONFIRM on separate lines and explicitly distinguish organizer opt-in from friend invitation.
+- Local Codex worker heartbeat remains healthy. No real reasoning job, proposal or commitment exists yet. Live acceptance still requires the friend to JOIN, both phones to use STATUS, and a real free-text proposal followed by the target's actual YES/NO. No modeled acceptance or fake consent was written.

@@ -95,9 +95,12 @@ describe("phone-only setup (signed simulated DMs, fake delivery, no app identity
     await h.receive(h.phones.alex, "TASK Picnic | setup | 2026-10-12T17:00:00Z | 2026-10-12T18:00:00Z", "task-setup");
     const task = (await h.t.run(ctx => ctx.db.query("tasks").unique()))!;
     expect(task).toMatchObject({ status: "unassigned", version: 1 });
+    // A friend may have already said hi before receiving their invitation.
+    await h.receive(h.phones.jordan, "hi");
+    const contactSendCount = h.fake.sends.length;
     await h.receive(h.phones.alex, `INVITE Picnic | Jordan | ${h.phones.jordan}`);
     const invitationCode = /JOIN ([A-F0-9]{32})/.exec(h.fake.sends.at(-1)!.content)![1]!;
-    expect(h.fake.sends.every(send => send.toPhoneE164 === h.phones.alex)).toBe(true);
+    expect(h.fake.sends.slice(contactSendCount).every(send => send.toPhoneE164 === h.phones.alex)).toBe(true);
     await h.receive(h.phones.jordan, `JOIN ${invitationCode}`);
     await h.receive(h.phones.jordan, "TASK Picnic | forbidden | 2026-10-12T17:00:00Z | 2026-10-12T18:00:00Z");
     expect(await h.t.run(ctx => ctx.db.query("tasks").collect())).toHaveLength(1);
@@ -111,6 +114,19 @@ describe("phone-only setup (signed simulated DMs, fake delivery, no app identity
     await h.receive(h.phones.jordan, "YES", "target-yes");
     await h.receive(h.phones.jordan, "YES", "target-yes");
     expect(await h.t.run(ctx => ctx.db.query("commitments").collect())).toMatchObject([{ state: "active", taskId: task._id }]);
+  });
+  it.each([ ["Rally participant", "Jordan"], ["Existing name", "Existing name"] ])("updates only a placeholder name after the correct participant JOIN (%s)", async (originalName, expectedName) => {
+    const h = await messagingHarness(); await enrolled(h);
+    await h.receive(h.phones.jordan, "hi");
+    const before = (await h.t.run(ctx => ctx.db.query("users").withIndex("by_phone", q => q.eq("verifiedPhoneE164", h.phones.jordan)).unique()))!;
+    await h.t.run(ctx => ctx.db.patch(before._id, { displayName: originalName }));
+    await h.receive(h.phones.alex, `INVITE Picnic | Jordan | ${h.phones.jordan}`);
+    const code = /JOIN ([A-F0-9]{32})/.exec(h.fake.sends.at(-1)!.content)![1]!;
+    expect((await h.t.run(ctx => ctx.db.get(before._id)))!.displayName).toBe(originalName);
+    await h.receive(h.phones.sam, `JOIN ${code}`);
+    expect((await h.t.run(ctx => ctx.db.get(before._id)))!.displayName).toBe(originalName);
+    await h.receive(h.phones.jordan, `JOIN ${code}`);
+    expect(await h.t.run(ctx => ctx.db.get(before._id))).toMatchObject({ displayName: expectedName, verifiedPhoneE164: h.phones.jordan });
   });
   it("rejects malformed setup, past dates, arbitrary replies, foreign scopes, and STOP before setup", async () => {
     const h = await messagingHarness();

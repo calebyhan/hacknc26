@@ -80,7 +80,7 @@ export const redeem = internalMutation({
       } else await ctx.db.patch(membership._id, { userId: canonicalUser._id, state: "enrolled", notificationsEnabled: true, joinedAt: Date.now(), consentAt: Date.now(), consentSourceMessageId: message._id });
     }
     // JOIN never silently resumes a STOP/PAUSE preference.
-    await ctx.db.patch(canonicalUser._id, { verifiedPhoneE164: message.senderPhone, ...(canonicalUser.displayName === "Rally participant" ? { displayName: target.displayName } : {}) });
+    await ctx.db.patch(canonicalUser._id, { verifiedPhoneE164: message.senderPhone, ...(canonicalUser.displayName === "Rally participant" ? { displayName: selected?.displayName ?? target.displayName } : {}) });
     await ctx.db.patch(invitation._id, { targetUserId: canonicalUser._id, state: "redeemed", redeemedByPhoneE164: message.senderPhone, redeemedAt: Date.now() });
     return { redeemed: true, userId: canonicalUser._id, ...(invitation.eventId ? { eventId: invitation.eventId } : {}) };
   },

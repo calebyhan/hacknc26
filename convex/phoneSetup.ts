@@ -49,7 +49,7 @@ export const execute = internalMutation({
         const event = (await ctx.db.get(eventId))!;
         const membership = (await ctx.db.query("memberships").withIndex("by_event_user", q => q.eq("eventId", eventId).eq("userId", user._id)).unique())!;
         const invitation = await createOrganizerInvitation(ctx, user, membership, eventId, `phone:${messageId}`);
-        content = `Draft: ${event.title}\nWhen: ${new Date(event.startsAt).toISOString()} (${event.timezone})${event.location ? `\nWhere: ${event.location}` : ""}\nNothing is scheduled yet. To enable this event's Rally notifications, text JOIN ${invitation.code}. After joining, review these details and text CONFIRM ${eventId} ${event.version} to schedule it. Invitation expires in 24 hours.`;
+        content = `Draft: ${event.title}\nWhen: ${new Date(event.startsAt).toISOString()} (${event.timezone})${event.location ? `\nWhere: ${event.location}` : ""}\nNothing is scheduled yet.\n\n1. Enable your event notifications. Send this as its own message:\nJOIN ${invitation.code}\n\n2. After joining, review the details. If correct, send:\nCONFIRM ${eventId} ${event.version}\n\nThis JOIN code is for your phone only and expires in 24 hours. After confirming, invite each friend separately:\nINVITE ${eventId} | <friend name> | <their phone in +country format>`;
         break;
       }
       case "CONFIRM_EVENT": {
