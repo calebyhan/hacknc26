@@ -1,6 +1,6 @@
 # Rally
 
-**Status:** Real Photon HELP and onboarding STATUS replies passed, with user-confirmed phone receipt. Lane B implements authenticated event/task setup, proposals, acceptance/rejection, cancellation, scoped status, validated decision execution and the replacement planner, deployed to teammate `dev/caleb-han`. **173 local tests pass**, including 13 signed full-pipeline A+B simulations. Auth0 configuration/discovery and cloud access denial are verified. **Live event enrollment and reassignment remain to be demonstrated; Lane C's worker/context/weather functions are still stubs.** See [messaging evidence](docs/19-messaging-evidence.md), [domain evidence/setup](docs/20-domain-evidence.md) and [integration evidence](docs/21-messaging-domain-integration.md).
+**Status:** Local `main` includes the A/B backend and Lane D continuation; its latest merge check passed **225 backend tests, 73 iOS unit tests and eight simulator UI tests**. A user-provided live DM transcript now shows phone event creation, JOIN, enrolled STATUS, draft confirmation, a setup offer and its expiry after about ten minutes. **No target YES/NO or committed reassignment is shown; M1 remains incomplete.** The phone setup and AI code is on the separate `origin/lane-c/local-ai` branch (`6c4c444`), whose evidence records a development deployment; this `main` still has Lane C stubs. Reconcile the branches before deploying this checkout over the newer backend. See [the sanitized transcript assessment](docs/19-messaging-evidence.md#user-reported-live-setup-and-offer-follow-up), [domain evidence/setup](docs/20-domain-evidence.md) and [integration evidence](docs/21-messaging-domain-integration.md).
 
 **Primary experience:** iMessage via Photon Spectrum.  
 **Companion experience:** lightweight SwiftUI iOS app for project/event setup, explicit contact selection, membership, and live status.  
@@ -78,7 +78,7 @@ Rally/
   .github/workflows/        # npm ci + npm run check on PRs to main
 ```
 
-The P1 [`ios/Rally/`](ios/Rally/README.md) companion is present with a tested local demo and Convex/Auth0 adapter. Live account provisioning, phone linking and the M2/ST-15 app acceptance flow remain incomplete.
+The P1 [`ios/Rally/`](ios/Rally/README.md) companion's account, phone-link, event/task, contact, approval and status integration is implemented and locally tested. Deployment of its additive contracts and the real Auth0/Photon/device M2/ST-15 acceptance flow remain incomplete.
 
 ## Local bootstrap checks
 

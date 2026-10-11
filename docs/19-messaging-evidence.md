@@ -1,8 +1,37 @@
 # Lane A messaging evidence and setup
 
-Date: 2026-10-10. **Goal:** a participant-initiated DM reaches a durable inbox, can enroll through JOIN, and receives consent-checked replies. **T0's real inbound/reply smoke test passes; live JOIN and M1 remain incomplete.** Local tests cover invitation and routing behavior with simulation. See the real transport trace below for the narrower live evidence.
+Date: 2026-10-10. **Goal:** a participant-initiated DM reaches a durable inbox, can enroll through JOIN, and receives consent-checked replies. **T0's real inbound/reply smoke test passes. A later user-provided transcript shows JOIN, enrolled STATUS, event setup and a pending offer followed by expiry; live acceptance/reassignment remains incomplete.** See the [latest follow-up](#user-reported-live-setup-and-offer-follow-up) for its evidence boundary. Earlier checkpoints below retain their historical scope.
 
-Lane B follow-up: the historical stub/blocker statements below describe the Lane A checkpoint. Domain/auth implementation and actual-router simulation tests now pass; see [Lane B evidence](20-domain-evidence.md). Live event JOIN/STATUS and two-phone reassignment remain pending.
+Lane B follow-up: the historical stub/blocker statements below describe the Lane A checkpoint. Domain/auth implementation and actual-router simulation tests now pass; see [Lane B evidence](20-domain-evidence.md). The new phone observations supersede the earlier absence of live JOIN/STATUS evidence; the multi-phone acceptance gate remains pending.
+
+## User-reported live setup and offer follow-up
+
+Recorded 2026-10-10 from a transcript supplied by the user, plus their clarification that the offer expired **about ten minutes** after arrival. This is user-observed live traffic, not a simulation or a fresh backend inspection. The transcript provides no message timestamps, outbox counts, provider IDs, task/proposal versions or database snapshots. Names, phone numbers, invitation codes and opaque live IDs are omitted here.
+
+| Observation | Supported conclusion | Boundary |
+|---|---|---|
+| CREATE EVENT returned instructions, then a draft and JOIN/CONFIRM instructions | Phone-only setup replies reached the user | Exact deployment commit and persisted rows were not inspected during this follow-up |
+| JOIN succeeded and STATUS listed the event | New live enrollment and enrolled-status phone evidence | Does not establish every participant's enrollment or cross-event authorization |
+| One JOIN was rejected | Invalid-invitation feedback reached the user | The transcript cannot identify wrong recipient, expiry, invalid code or another rejection cause |
+| CONFIRM returned a scheduled-event reply with no assignment | Explicit scheduling confirmation reached the user | Backend event status/version not independently read |
+| LEAVE with an invitation code was rejected | That argument did not identify an enrolled event | LEAVE expects an event title/ID, not a JOIN code; the current router also blocks organizer departure pending transfer |
+| Another JOIN succeeded; STATUS then displayed two equal event titles | The status presentation is ambiguous for same-titled entries | Distinct same-titled events are plausible; duplicate database rows or webhook processing are not established |
+| STATUS showed an unassigned setup task, followed by a request to cover it | A task-status reply and actual offer reached the phone | No prior active assignee, triggering request or participant acceptance is shown; this does not prove the A1 reassignment case |
+| An expiry notice followed about ten minutes later | Observed timing is consistent with the configured offer TTL | No late YES, accepted commitment or post-expiry backend snapshot is shown |
+
+The inspected decision/planner code creates offers with `expiresAt = Date.now() + 600000`. The scheduler closes pending offers at that deadline; the task's future date does not extend the reply window. The reported ten-minute interval is consistent with intended expiry, not evidence of premature expiry. Exact creation-to-send delay remains unmeasured. Setup before an event's start can be valid; the transcript alone does not establish that the task window is wrong.
+
+### Source and deployment reconciliation
+
+At this follow-up, local `main` is `1e3e64a`, containing the tested A/B/D merge. `git fetch origin` discovered `origin/lane-c/local-ai` at `6c4c444`; its phone setup parser/handler matches the CREATE EVENT and CONFIRM behavior absent from local `main`. That branch also contains resolver/queue/worker code. Its `docs/22-local-ai-evidence.md` records deployment to `calm-jackal-984`, 324 local tests and 23 synthetic-input live inference cases. Those are that branch's recorded results, not newly executed checks in this follow-up, and its sampled worker availability is not a current health check.
+
+The transcript is consistent with that newer branch, but does not identify its exact deployed commit. Lane C is therefore still stubbed on this `main`, while newer implementation and deployment evidence exist separately. Reconcile C with the merged D contracts before deploying this checkout; do not overwrite the newer backend with stubs. No merge, deployment, provider call or live data mutation was performed for this assessment.
+
+### Remaining M1 evidence
+
+Use one unambiguous event ID and a fresh offer to the intended opted-in target. Record the actual target's YES before expiry, committed task/commitment states and versions, and the resulting notices. Establish an initial assignment through genuine acceptance before testing reassignment to another person. Then exercise a separate NO and replay of the accepted message, capturing backend/outbox evidence without duplicating commitments or business notices. The expired offer in this transcript cannot establish acceptance; neither M1 nor ST-15 is complete from these observations.
+
+Verification for this update: reviewed source on both refs and ran documentation diff/privacy checks only. No runtime code changed and no test suite was rerun. Earlier merged-tree evidence remains 225 backend tests, 73 iOS unit tests and eight simulator UI tests, all passing.
 
 ## Implementation
 
